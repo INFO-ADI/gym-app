@@ -19,6 +19,7 @@
     if (!r.ok) return;
     const s = r.data;
     $('pm').textContent = inr(s.price_month);
+    $('heroPrice').textContent = inr(s.price_month);
     $('py').textContent = inr(s.price_year);
     $('pyMonth').textContent = inr(Math.ceil(s.price_year / 12));
     const save = s.price_month * 12 - s.price_year;
@@ -39,13 +40,13 @@
     ev.preventDefault();
     const btn = form.querySelector('button'); const msg = $('leadMsg');
     const data = Object.fromEntries(new FormData(form).entries());
-    if (!/^(\+?91)?[\s-]*[6-9]\d{4}[\s-]*\d{5}$/.test(data.phone.trim())) { msg.className = 'msg err'; msg.textContent = 'Please enter a 10-digit mobile number.'; return; }
+    if (!/^(\+?91)?[\s-]*[6-9]\d{4}[\s-]*\d{5}$/.test(data.phone.trim())) { msg.className = 'msg err'; msg.textContent = 'Enter a 10-digit mobile number.'; return; }
     btn.disabled = true; msg.className = 'msg'; msg.textContent = 'Sending…';
     try {
       const r = await rpc('lead', data);
-      if (r.ok) { form.reset(); msg.className = 'msg ok'; msg.textContent = 'Thank you! We will WhatsApp you within a day. 🙏'; }
-      else { msg.className = 'msg err'; msg.textContent = r.error === 'too_many_attempts' ? 'Already received. We will contact you soon.' : 'Please check your name and number.'; }
-    } catch (e) { msg.className = 'msg err'; msg.textContent = 'No internet. Please try again.'; }
+      if (r.ok) { form.reset(); msg.className = 'msg ok'; msg.textContent = 'Thanks. We’ll message you on WhatsApp within a day.'; }
+      else { msg.className = 'msg err'; msg.textContent = r.error === 'too_many_attempts' ? 'We already have your request and will message you soon.' : 'Check your name and WhatsApp number, then try again.'; }
+    } catch (e) { msg.className = 'msg err'; msg.textContent = 'Couldn’t send. Check your internet and try again.'; }
     btn.disabled = false;
   });
 })();

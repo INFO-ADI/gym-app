@@ -3,124 +3,200 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{SITE}} · Your gym's own app for members, fees &amp; renewals</title>
-<meta name="description" content="Gym management app made for Kanpur gyms: WhatsApp renewal reminders, UPI payments, attendance, personal training, diet plans and profit, in an app with your gym's name and logo. 1 month free.">
-<meta name="theme-color" content="#0b0c10">
+<title>{{SITE}}: gym management app for fees, renewals and members</title>
+<meta name="description" content="A gym app with your gym's name and logo. WhatsApp renewal reminders, UPI fee payments, attendance, personal training and monthly profit. First month free, then ₹800 a month.">
+<meta name="theme-color" content="#f4f5f2">
 <meta property="og:title" content="{{SITE}}: your gym's own app">
-<meta property="og:description" content="Members renew on time with WhatsApp reminders and UPI. 1 month free trial.">
+<meta property="og:description" content="Members renew on time with WhatsApp reminders and UPI payments. First month free.">
 <meta property="og:image" content="https://{{DOMAIN}}/assets/landing/owner.webp">
 <link rel="icon" href="/assets/icons/icon-192.png">
+<link rel="preload" href="/assets/fonts/archivo-latin-wdth-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/landing.css?v={{V}}">
 </head>
 <body>
-<header class="nav">
-  <a class="brand" href="#top"><img src="/assets/icons/icon-192.png" alt=""><span>{{SITE}}</span></a>
-  <nav><a href="#features">Features</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a></nav>
-  <a class="btn sm" href="#demo">Free demo</a>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <div class="wrap top-in">
+    <a class="mark" href="/" aria-label="{{SITE}} home">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="9" width="5" height="14" rx="1.5"/><rect x="24" y="9" width="5" height="14" rx="1.5"/><rect x="8" y="14.5" width="16" height="3"/><rect x="0.5" y="12" width="2.5" height="8" rx="1"/><rect x="29" y="12" width="2.5" height="8" rx="1"/></svg>
+      <span>{{SITE}}</span>
+    </a>
+    <nav aria-label="Main">
+      <a href="#features">Features</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">Questions</a>
+    </nav>
+    <a class="btn small" href="#demo">Book a free demo</a>
+  </div>
 </header>
 
-<main id="top">
-  <section class="hero wrap">
-    <div class="hero-text">
-      <p class="pill">🔥 Made for gyms in Kanpur</p>
-      <h1>Your gym's own app.<br><span class="grad">Members renew on time.</span></h1>
-      <p class="lead">WhatsApp reminders before fees expire, UPI payments with receipts, QR attendance, personal training, diet plans and your monthly profit. All in one app with <b>your gym's name and logo</b>.</p>
-      <div class="cta">
-        <a class="btn" href="#demo">Start 1-month free trial</a>
-        <a class="btn ghost hidden" id="demoLink" href="#" target="_blank" rel="noopener">See live demo →</a>
+<main id="main">
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <p class="place">For gyms in Kanpur</p>
+        <h1>Your members renew on time. Every month.</h1>
+        <p class="lead">An app with your gym's name and logo. It reminds members on WhatsApp before their fees run out, takes payment on UPI, and shows what you collected this month.</p>
+        <div class="actions">
+          <a class="btn" href="#demo">Book a free demo</a>
+          <a class="btn quiet hidden" id="demoLink" href="#" target="_blank" rel="noopener">Open the demo app</a>
+        </div>
+        <p class="terms">First month free. Then <span id="heroPrice">₹800</span> a month. No setup fee.</p>
       </div>
-      <p class="fine">No setup fee · No card needed · Works on any phone</p>
-    </div>
-    <div class="phones" aria-hidden="true">
-      <img class="phone p1" src="/assets/landing/owner.webp" alt="" width="420" height="860">
-      <img class="phone p2" src="/assets/landing/member.webp" alt="" width="420" height="860">
+      <figure class="hero-phone">
+        <div class="phone"><img src="/assets/landing/owner.webp" alt="Owner dashboard showing this month's collection, members due and payments to confirm" width="600" height="1260"></div>
+      </figure>
     </div>
   </section>
 
-  <section class="pain wrap">
-    <div class="pcard"><span>😩</span><b>Members forget to renew</b><p>Every month a few quietly stop coming, and the fee is lost.</p></div>
-    <div class="pcard"><span>📒</span><b>Fees in a register</b><p>Who paid, who owes, who expires this week? Hard to tell.</p></div>
-    <div class="pcard"><span>🤷</span><b>No clear profit</b><p>Rent, salaries, bills… what's actually left at month end?</p></div>
-  </section>
-
-  <section id="features" class="wrap">
-    <h2 class="center">Everything your gym needs, <span class="grad">in one app</span></h2>
-    <div class="grid">
-      <div class="f"><i>💬</i><b>WhatsApp reminders</b><p>One tap sends renewal reminders before a membership ends. Birthday wishes too.</p></div>
-      <div class="f"><i>₹</i><b>UPI payments &amp; receipts</b><p>Members pay to your UPI ID. You confirm, and a receipt is ready instantly.</p></div>
-      <div class="f"><i>📲</i><b>Member app</b><p>Membership card, check-in, workout of the day, progress, diet plan and renew, on their phone.</p></div>
-      <div class="f"><i>✅</i><b>QR attendance</b><p>Members scan the poster at your desk. See who comes and who has gone missing.</p></div>
-      <div class="f"><i>🏋️</i><b>Personal training</b><p>PT packages, sessions left, trainer-wise clients. Never miss a renewal.</p></div>
-      <div class="f"><i>🥗</i><b>Diet plans &amp; batches</b><p>Give diet charts in the app. Morning, evening and ladies batches with limits.</p></div>
-      <div class="f"><i>📈</i><b>Enquiries &amp; referrals</b><p>Track walk-ins and follow-ups. Members invite friends and earn free days.</p></div>
-      <div class="f"><i>📊</i><b>Profit, not guesswork</b><p>Income, expenses and profit every month. Supplement shop with stock too.</p></div>
+  <section class="proof">
+    <div class="wrap proof-grid">
+      <div><b>One tap</b><span>Remind every member whose fees are due this week.</span></div>
+      <div><b>Direct UPI</b><span>Payments go straight to your account. No commission.</span></div>
+      <div><b>Any phone</b><span>Android or iPhone. Nothing to download from the Play Store.</span></div>
     </div>
   </section>
 
-  <section class="shots wrap">
-    <figure><img src="/assets/landing/reminders.webp" alt="Renewal reminders screen" loading="lazy" width="420" height="860"><figcaption>Remind expiring members in one tap</figcaption></figure>
-    <figure><img src="/assets/landing/profit.webp" alt="Income and expenses chart" loading="lazy" width="420" height="860"><figcaption>See your real profit</figcaption></figure>
-    <figure><img src="/assets/landing/member.webp" alt="Member app home screen" loading="lazy" width="420" height="860"><figcaption>Your members' app</figcaption></figure>
-  </section>
+  <section id="features" class="features">
+    <div class="wrap">
+      <h2 class="section-title">Retire the fees register for good</h2>
 
-  <section class="how wrap">
-    <h2 class="center">Live in <span class="grad">one day</span></h2>
-    <ol class="steps">
-      <li><b>Book a free demo</b><p>We show you the app on your phone in 10 minutes.</p></li>
-      <li><b>We set it up</b><p>Your app with your gym's name, colours and logo. We add your members for free.</p></li>
-      <li><b>Share the link</b><p>Members install it from a link. No Play Store needed. Works on Android and iPhone.</p></li>
-    </ol>
-  </section>
+      <article class="row">
+        <div class="row-copy">
+          <h3>Renewals that don't slip</h3>
+          <p>See who expires this week and who stopped coming. Send a WhatsApp reminder to each of them in one tap, with their name, plan and amount already written.</p>
+          <ul class="ticks">
+            <li>Expiring, expired and missing-for-a-week lists</li>
+            <li>Birthday wishes and announcements</li>
+            <li>Freeze a membership when a member travels</li>
+          </ul>
+        </div>
+        <div class="row-shot"><div class="phone"><img src="/assets/landing/reminders.webp" alt="Reminders screen listing members whose membership ends soon" width="600" height="1260" loading="lazy"></div></div>
+      </article>
 
-  <section id="pricing" class="wrap">
-    <h2 class="center">Simple pricing. <span class="grad">First month free.</span></h2>
-    <div class="prices">
-      <div class="price">
-        <b>Monthly</b>
-        <div class="amt"><span id="pm">₹800</span><small>/month</small></div>
-        <ul><li>Everything included</li><li>Unlimited members</li><li>Free setup &amp; member import</li><li>WhatsApp support</li></ul>
-        <a class="btn ghost block" href="#demo">Start free trial</a>
+      <article class="row flip">
+        <div class="row-copy">
+          <h3>Fees on UPI, receipts done</h3>
+          <p>Members renew from their phone and pay to your UPI ID. You check your UPI app, tap confirm, and the receipt is ready. Cash payments go in with two taps.</p>
+          <ul class="ticks">
+            <li>Admission fee, offers and coupon codes</li>
+            <li>Personal training packages and sessions left</li>
+            <li>Supplement shop with stock</li>
+          </ul>
+        </div>
+        <div class="row-shot"><div class="phone"><img src="/assets/landing/pay.webp" alt="Member renewing a plan and paying by UPI" width="600" height="1260" loading="lazy"></div></div>
+      </article>
+
+      <article class="row">
+        <div class="row-copy">
+          <h3>An app members open every day</h3>
+          <p>Members check in by scanning the QR code at your desk, see their streak and days left, and get the workout of the day. People who track their progress stay longer.</p>
+          <ul class="ticks">
+            <li>Membership card with days left</li>
+            <li>Workout of the day and weight log</li>
+            <li>Diet plans from the trainer</li>
+          </ul>
+        </div>
+        <div class="row-shot"><div class="phone"><img src="/assets/landing/member.webp" alt="Member home screen with days left, check-in streak and today's workout" width="600" height="1260" loading="lazy"></div></div>
+      </article>
+
+      <div class="more">
+        <h3>Also included</h3>
+        <ul class="more-list">
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg><span><b>Monthly profit</b>: income, rent, salaries and bills in one place</span></li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2zM14 18h2"/></svg><span><b>QR check-in</b> and a list of members who stopped coming</span></li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg><span><b>Batches</b>: morning, evening and ladies slots with limits</span></li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span><b>Enquiries</b>: walk-ins and follow-up dates</span></li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 12h8M12 8v8"/><circle cx="12" cy="12" r="9"/></svg><span><b>Refer a friend</b>: both get free days</span></li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span><b>Excel backup</b> of members and payments any time</span></li>
+        </ul>
       </div>
-      <div class="price best">
-        <span class="tag" id="save">Save ₹4,601</span>
-        <b>Yearly</b>
-        <div class="amt"><span id="py">₹4,999</span><small>/year</small></div>
-        <ul><li>Everything in monthly</li><li>Less than <span id="pyMonth">₹417</span>/month</li><li>Free setup &amp; member import</li><li>Priority support</li></ul>
-        <a class="btn block" href="#demo">Start free trial</a>
+    </div>
+  </section>
+
+  <section class="start">
+    <div class="wrap">
+      <h2 class="section-title">Running in a day</h2>
+      <ol class="steps">
+        <li><b>We show you the app</b><p>A 10-minute demo at your gym, on your own phone.</p></li>
+        <li><b>We set it up for you</b><p>Your name, colours and logo. Send us your member list, even a photo of the register, and we add everyone free.</p></li>
+        <li><b>Members open your link</b><p>They add it to their home screen and log in with their phone number and PIN.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="pricing" class="pricing">
+    <div class="wrap">
+      <h2 class="section-title">One price. Everything included.</h2>
+      <p class="sub">Every gym starts with <span id="trialDays">30</span> days free. Pay by UPI only if you want to continue.</p>
+      <div class="plans">
+        <div class="plan">
+          <h3>Monthly</h3>
+          <p class="amount"><span id="pm">₹800</span> <small>a month</small></p>
+          <ul class="ticks">
+            <li>Unlimited members</li>
+            <li>All features, owner and member app</li>
+            <li>Free setup and member import</li>
+            <li>Help on WhatsApp</li>
+          </ul>
+          <a class="btn quiet block" href="#demo">Start free month</a>
+        </div>
+        <div class="plan best">
+          <div class="plan-head"><h3>Yearly</h3><span class="save" id="save">Save ₹4,601</span></div>
+          <p class="amount"><span id="py">₹4,999</span> <small>a year</small></p>
+          <ul class="ticks">
+            <li>Everything in monthly</li>
+            <li>Works out to <span id="pyMonth">₹417</span> a month</li>
+            <li>Free setup and member import</li>
+            <li>Priority help on WhatsApp</li>
+          </ul>
+          <a class="btn block" href="#demo">Start free month</a>
+        </div>
       </div>
     </div>
-    <p class="center fine"><span id="trialDays">30</span>-day free trial for every gym. Pay by UPI after the trial. Cancel anytime.</p>
   </section>
 
-  <section id="faq" class="wrap faq">
-    <h2 class="center">Questions</h2>
-    <details><summary>Do members need to download from the Play Store?</summary><p>No. They open your gym's link and tap "Add to Home screen". It works like an app on Android and iPhone.</p></details>
-    <details><summary>Is my data safe? Can other gyms see it?</summary><p>Your members, fees and payments are visible only to you. Every gym is kept separate, and logins are protected.</p></details>
-    <details><summary>Can you add my existing members?</summary><p>Yes, free. Send us your list (even a photo of the register) and we add them.</p></details>
-    <details><summary>What happens after the free trial?</summary><p>Pay monthly or yearly by UPI to continue. If you stop, the app pauses but your data stays safe for when you come back.</p></details>
-    <details><summary>Do I need a computer?</summary><p>No. Everything works on your phone.</p></details>
+  <section id="faq" class="faq">
+    <div class="wrap faq-grid">
+      <h2 class="section-title">Questions gym owners ask</h2>
+      <div>
+        <details><summary>Do members need to download anything from the Play Store?</summary><p>No. They open your gym's link and tap "Add to Home screen". It then opens like any other app, on Android and iPhone.</p></details>
+        <details><summary>Can other gyms see my members or income?</summary><p>No. Each gym's data is kept separate in the database, and only your login can open it.</p></details>
+        <details><summary>I have 300 members in a register. Do I type them all?</summary><p>No. Send us the list in any form, Excel or a photo of the register, and we add them for you, free.</p></details>
+        <details><summary>What happens after the free month?</summary><p>Pay monthly or yearly by UPI to keep going. If you stop, the app pauses and your data stays saved for when you come back.</p></details>
+        <details><summary>Do I need a computer?</summary><p>No. Everything works on your phone. A computer works too if you prefer a bigger screen.</p></details>
+      </div>
+    </div>
   </section>
 
-  <section id="demo" class="wrap demo">
-    <div class="demo-card">
-      <h2>Book your free demo</h2>
-      <p>Leave your number. We'll WhatsApp you and show the app at your gym.</p>
-      <form id="lead" autocomplete="on">
+  <section id="demo" class="demo">
+    <div class="wrap demo-grid">
+      <div class="demo-copy">
+        <h2>See it on your phone</h2>
+        <p>Leave your number and we'll message you on WhatsApp to fix a time. The demo takes 10 minutes and there's nothing to pay.</p>
+        <a class="wa hidden" id="waBtn" href="#" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.6-1.2A9 9 0 1 0 12 3z"/><path d="M8.5 8.5c.3 2.9 2.6 5.5 6 6.4l1.3-1.5-2-1-.9.8c-1.2-.5-2.3-1.6-2.8-2.8l.8-.9-1-2z"/></svg>
+          Message us on WhatsApp instead
+        </a>
+      </div>
+      <form id="lead" class="form" autocomplete="on" novalidate>
         <label>Your name<input name="name" required maxlength="100" autocomplete="name"></label>
-        <label>Gym name<input name="gym_name" maxlength="100"></label>
+        <label>Gym name<input name="gym_name" maxlength="100" autocomplete="organization"></label>
         <label>WhatsApp number<input name="phone" required inputmode="tel" placeholder="98765 43210" autocomplete="tel"></label>
-        <label>City<input name="city" maxlength="60" value="Kanpur"></label>
-        <button class="btn block" type="submit">Book free demo</button>
-        <p id="leadMsg" class="msg" role="status"></p>
+        <label>City<input name="city" maxlength="60" value="Kanpur" autocomplete="address-level2"></label>
+        <button class="btn block" type="submit">Book my free demo</button>
+        <p id="leadMsg" class="msg" role="status" aria-live="polite"></p>
       </form>
-      <a class="btn wa block hidden" id="waBtn" href="#" target="_blank" rel="noopener">Or chat on WhatsApp</a>
     </div>
   </section>
 </main>
 
-<footer class="wrap foot">
-  <span>© {{SITE}} · {{DOMAIN}}</span>
-  <a href="/admin/" rel="nofollow">Admin</a>
+<footer class="foot">
+  <div class="wrap foot-in">
+    <span>© {{SITE}}, {{DOMAIN}}</span>
+    <a href="/admin/" rel="nofollow">Admin login</a>
+  </div>
 </footer>
 <script src="/site-config.js?v={{V}}"></script>
 <script src="/assets/landing.js?v={{V}}"></script>
