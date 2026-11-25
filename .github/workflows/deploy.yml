@@ -15,20 +15,21 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Stamp version (cache busting)
         run: sed -i "s/const VERSION      = 'dev'/const VERSION      = '${GITHUB_SHA::10}'/" web/inc/config.php && grep VERSION web/inc/config.php
       - name: Check PHP syntax
         run: for f in web/index.php web/inc/*.php; do php -l "$f"; done
       - name: Upload to Hostinger
         env:
-          HAS_FTP: ${{ secrets.FTP_SERVER != '' }}
-        if: env.HAS_FTP == 'true'
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./web/
-          server-dir: ./public_html/
-          dangerous-clean-slate: false
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          if [ -z "$FTP_SERVER" ]; then echo 'No FTP secrets yet, skipping upload'; exit 0; fi
+          sudo apt-get -qq update && sudo apt-get -qq install -y lftp >/dev/null
+          SETTINGS="set ftp:ssl-allow no; set ftp:passive-mode on; set net:max-retries 5; set net:reconnect-interval-base 5; set net:timeout 30"
+          # the FTP login may open in the folder that contains public_html, or inside public_html itself
+          if lftp -u "$FTP_USERNAME","$FTP_PASSWORD" -e "$SETTINGS; cls -1 /; bye" "$FTP_SERVER" | grep -qx 'public_html/\?'; then TARGET=/public_html; else TARGET=/; fi
+          echo "Uploading to $TARGET"
+          lftp -u "$FTP_USERNAME","$FTP_PASSWORD" -e "$SETTINGS; mirror --reverse --parallel=3 --verbose=1 web/ $TARGET; bye" "$FTP_SERVER"
