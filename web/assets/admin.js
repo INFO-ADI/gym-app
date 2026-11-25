@@ -29,6 +29,7 @@
     gyms: 'M6 7v10M18 7v10M3 9v6M21 9v6M6 12h12',
     chat: 'M4 4h16v12H8l-4 4z',
     rupee: 'M6 4h12M6 9h12M6 4c6 0 8 2 8 5s-3 5-8 5l9 7',
+    bell: 'M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0',
     gear: 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1',
   };
   function icon(name) {
@@ -57,7 +58,7 @@
     slug_taken: 'That web name is already used by another gym.', slug_reserved: 'That web name is reserved. Pick another.', bad_color: 'Pick valid colours.',
     bad_phone: 'Enter a 10-digit mobile number.', bad_plan: 'Pick monthly or yearly.', bad_amount: 'Check the amount.', bad_days: 'Days must be 1–90.',
     confirm_slug: 'Type the gym web name exactly to confirm.', not_found: 'Not found. It may have been deleted.', server_error: 'Something went wrong. Try again.',
-    upload_failed: 'Logo upload failed. Use a PNG or JPG under 5 MB.', not_an_image: 'That file is not an image.',
+    upload_failed: 'Logo upload failed. Use a PNG or JPG under 5 MB.', bad_upi: 'UPI ID looks wrong. It should look like name@okaxis.', not_an_image: 'That file is not an image.',
   };
   const errText = e => ERR[e] || ('Error: ' + e);
   const showErr = e => toast(errText(e && e.message ? e.message : e), true);
@@ -116,7 +117,7 @@
   }
 
   /* ---------------- frame ---------------- */
-  const NAV = [['#/', 'Home', 'home'], ['#/gyms', 'Gyms', 'gyms'], ['#/leads', 'Leads', 'chat'], ['#/money', 'Money', 'rupee'], ['#/settings', 'Settings', 'gear']];
+  const NAV = [['#/', 'Home', 'home'], ['#/gyms', 'Gyms', 'gyms'], ['#/remind', 'Remind', 'bell'], ['#/leads', 'Leads', 'chat'], ['#/settings', 'Settings', 'gear']];
   function frame(title, content, opts) {
     opts = opts || {};
     const cur = '#/' + (location.hash.slice(2).split('/')[0] || '');
@@ -185,7 +186,11 @@
     plain([h('h1', null, 'New password'), form]);
   }
 
+  const IDLE_MS = 12 * 3600e3;
+  function touch() { try { localStorage.setItem('kg_admin_seen', String(Date.now())); } catch (e) { /* ignore */ } }
+  function idleTooLong() { try { const t = +localStorage.getItem('kg_admin_seen') || 0; return t && Date.now() - t > IDLE_MS; } catch (e) { return false; } }
   async function boot() {
+    if (sb && idleTooLong()) { await sb.auth.signOut(); try { localStorage.removeItem('kg_admin_seen'); } catch (e) { /* ignore */ } return loginPage('Logged out after 12 hours without use. Please log in again.'); }
     if (!sb) return plain([h('h1', null, 'Not connected'), h('p', { class: 'muted' }, 'site-config.js did not load.')]);
     if (S.recovery) return newPassword();
     const { data } = await sb.auth.getSession();
@@ -204,6 +209,7 @@
   function route() {
     if (!S.me || !S.me.is_admin) return;
     const parts = location.hash.replace(/^#\/?/, '').split('/');
+    touch();
     const fn = routes[parts[0] || 'home'] || routes.home;
     Promise.resolve(fn(parts[1])).catch(showErr);
   }
@@ -212,7 +218,7 @@
   /* ---------------- home ---------------- */
   routes.home = async () => {
     loading('Overview');
-    const d = await api('overview');
+    const [d, rm] = await Promise.all([api('overview'), api('reminders')]);
     S.gyms = d.gyms;
     const c = d.counts;
     const attention = d.gyms.filter(g => g.sub.state === 'grace' || g.sub.state === 'expired' || (['trial', 'active'].includes(g.sub.state) && g.sub.days_left <= 5) || !g.claimed);
@@ -220,16 +226,18 @@
       h('div', { class: 'hero' },
         h('div', { class: 'hello' }, 'Monthly recurring income'),
         h('div', { class: 'big-money gradtext' }, fmtMoney(d.mrr)),
-        h('div', { class: 'muted small' }, 'Collected this month ' + fmtMoney(d.collected_month) + ' · all time ' + fmtMoney(d.collected_total)),
+        h('a', { class: 'muted small', href: '#/money' }, 'Collected this month ' + fmtMoney(d.collected_month) + ' · all time ' + fmtMoney(d.collected_total) + ' ›'),
         h('div', { class: 'statrow' },
           h('div', { class: 'stat' }, h('b', null, c.total), h('span', null, 'Gyms')),
           h('div', { class: 'stat' }, h('b', null, c.active), h('span', null, 'Paying')),
           h('div', { class: 'stat' }, h('b', null, c.trial), h('span', null, 'On trial')))),
       h('div', { class: 'tiles' },
         h('a', { class: 'tile hot', href: '#/leads' }, h('div', { class: 'n' }, d.leads_new), h('div', { class: 'l' }, 'New demo requests')),
-        h('a', { class: 'tile warn', href: '#/gyms/attention' }, h('div', { class: 'n' }, d.trials_ending + c.grace + c.expired), h('div', { class: 'l' }, 'Need follow-up')),
+        h('a', { class: 'tile warn', href: '#/remind' }, h('div', { class: 'n' }, rm.gyms.filter(g => !g.reminded_today).length), h('div', { class: 'l' }, 'Reminders to send')),
         h('div', { class: 'tile good' }, h('div', { class: 'n' }, c.members), h('div', { class: 'l' }, 'Members on all gyms')),
         h('a', { class: 'tile', href: '#/new' }, h('div', { class: 'n' }, '+'), h('div', { class: 'l' }, 'New gym'))),
+      rm.requests.length ? h('a', { class: 'card subnote', href: '#/remind' }, h('div', { class: 'grow' }, h('b', null, rm.requests.length + ' renewal payment' + (rm.requests.length > 1 ? 's' : '') + ' to confirm'),
+        h('div', { class: 'small muted' }, 'Gym owners paid by UPI from their app. Check your UPI app, then confirm.')), '›') : null,
       h('div', { class: 'section' }, 'Needs attention'),
       attention.length ? attention.slice(0, 8).map(gymCard) : h('div', { class: 'card muted small' }, 'All good. No trials ending, nothing overdue.'),
       h('a', { class: 'btn block', href: '#/new' }, '+ Create a new gym'),
@@ -519,6 +527,52 @@
     ], { back: '#/gyms' });
   };
 
+  /* ---------------- reminders to gyms + renewal payments to confirm ---------------- */
+  const REASON = { trial_ending: ['Trial ending', 'waiting'], plan_ending: ['Plan ending', 'expiring'], grace: ['Ended · grace', 'expiring'], expired: ['Expired', 'expired'], not_setup: ['Not set up', 'archived'] };
+  function reminderText(g) {
+    const first = g.owner_name ? ' ' + g.owner_name.split(' ')[0] : '';
+    const st = S.settings || {};
+    const price = fmtMoney(st.price_month || 800) + '/month ya ' + fmtMoney(st.price_year || 4999) + '/year';
+    const how = 'App me More → App plan kholiye, wahan UPI se 1 minute me renew ho jayega.';
+    const sign = '\n- ' + (CFG.site || 'Team');
+    const ends = fmtDate(g.sub.ends);
+    switch (g.reason) {
+      case 'trial_ending': return 'Namaste' + first + ' ji! ' + g.name + ' app ka free trial ' + ends + ' ko khatam ho raha hai. Aage chalane ke liye ' + price + '. ' + how + sign;
+      case 'plan_ending': return 'Namaste' + first + ' ji! ' + g.name + ' app ka plan ' + ends + ' ko khatam ho raha hai. ' + how + sign;
+      case 'grace': return 'Namaste' + first + ' ji! ' + g.name + ' app ka plan ' + ends + ' ko khatam ho gaya. Kuch hi din me app aapke aur members ke liye band ho jayega. ' + how + sign;
+      case 'expired': return 'Namaste' + first + ' ji! ' + g.name + ' app abhi band hai. Aapka saara data safe hai. Renew karte hi turant chalu ho jayega: ' + price + '. Reply kijiye, main help kar deta hoon.' + sign;
+      default: return 'Namaste' + first + ' ji! ' + g.name + ' ka app abhi setup nahi hua hai. Setup me 5 minute lagte hain. Kya main abhi call karke help kar doon?' + sign;
+    }
+  }
+  routes.remind = async () => {
+    loading('Reminders');
+    const d = await api('reminders');
+    const reqCard = r => {
+      const ok = h('button', { class: 'btn sm good' }, 'Confirm ' + fmtMoney(r.amount));
+      const no = h('button', { class: 'btn sm ghost' }, 'Not received');
+      ok.addEventListener('click', busy(ok, async () => { const x = await api('request_decide', { id: r.id, confirm: true }); toast(r.gym_name + ' renewed till ' + fmtDate(x.period_to)); routes.remind(); }));
+      no.addEventListener('click', busy(no, async () => { if (!confirm('Mark this payment as not received? The owner can send it again.')) return; await api('request_decide', { id: r.id, confirm: false }); toast('Marked as not received'); routes.remind(); }));
+      return h('div', { class: 'card due' }, h('div', { class: 'row between' }, h('b', null, r.gym_name), h('b', null, fmtMoney(r.amount))),
+        h('div', { class: 'small muted' }, (r.plan === 'yearly' ? 'Yearly' : 'Monthly') + ' · sent ' + fmtDate(r.at) + (r.utr ? ' · UTR ' + r.utr : '') + (r.by ? ' · ' + r.by : '')),
+        h('div', { class: 'small' }, 'Check your UPI app for this payment first.'), h('div', { class: 'btns' }, ok, no));
+    };
+    const gymRow = g => {
+      const rs = REASON[g.reason] || [g.reason, ''];
+      const send = g.owner_phone ? h('a', { class: 'btn sm wa', href: waLink(g.owner_phone, reminderText(g)), target: '_blank', rel: 'noopener' }, g.reminded_today ? 'Send again' : 'Send') : h('a', { class: 'btn sm ghost', href: '#/gym/' + g.id }, 'Add phone');
+      send.addEventListener('click', () => { if (g.owner_phone) api('reminded', { id: g.id, kind: g.reason }).then(() => setTimeout(routes.remind, 800)).catch(() => {}); });
+      return h('div', { class: 'card' },
+        h('div', { class: 'row between' }, h('a', { href: '#/gym/' + g.id }, h('b', null, g.name)), h('span', { class: 'badge ' + rs[1] }, rs[0])),
+        h('div', { class: 'small' }, stateLine(g)),
+        h('div', { class: 'row between' }, h('span', { class: 'small muted' }, g.reminded_today ? '✓ Reminded today' : g.last_reminded ? 'Last reminded ' + fmtDate(g.last_reminded) : 'Not reminded yet'), send));
+    };
+    frame('Reminders', [
+      d.requests.length ? [h('div', { class: 'section' }, 'Payments to confirm'), d.requests.map(reqCard)] : null,
+      h('div', { class: 'section' }, 'Gyms to remind'),
+      h('p', { class: 'muted small' }, 'Gyms whose trial or plan ends within ' + d.remind_days + ' days, recently expired gyms, and gyms not set up yet. Their owners also see a renewal pop-up in their app every day. Tap Send: WhatsApp opens with the message ready.'),
+      d.gyms.length ? d.gyms.map(gymRow) : h('div', { class: 'empty' }, 'No reminders due. Every gym is paid up.'),
+    ]);
+  };
+
   /* ---------------- leads from the website ---------------- */
   routes.leads = async (tab) => {
     tab = tab || 'open';
@@ -571,6 +625,10 @@
         h('label', { class: 'f grow' }, 'Price per year (₹)', h('input', { name: 'price_year', inputmode: 'numeric', value: st.price_year }))),
       h('div', { class: 'row' }, h('label', { class: 'f grow' }, 'Free trial (days)', h('input', { name: 'trial_days', inputmode: 'numeric', value: st.trial_days })),
         h('label', { class: 'f grow' }, 'Grace after expiry (days)', h('input', { name: 'grace_days', inputmode: 'numeric', value: st.grace_days }))),
+      field('Your UPI ID (gym owners pay renewals to this)', h('input', { name: 'upi_id', value: st.upi_id || '', placeholder: 'yourname@okaxis', autocapitalize: 'off' })),
+      field('Name shown on UPI', h('input', { name: 'upi_name', value: st.upi_name || '', maxlength: 60 })),
+      field('Start reminding gyms this many days before the plan ends', h('input', { name: 'remind_days', inputmode: 'numeric', value: st.remind_days || 2 })),
+      field('Notice to all gym owners (shown on their dashboard, leave empty for none)', h('textarea', { name: 'notice', maxlength: 300 }, st.notice || '')),
       field('Demo gym web name (used for "See demo" on the website)', h('input', { name: 'demo_slug', value: st.demo_slug || '', autocapitalize: 'off' })),
       field('Gym app addresses', h('select', { name: 'url_style' }, h('option', { value: 'subdomain', selected: st.url_style !== 'path' }, 'gymname.' + (st.base_domain || 'domain')),
         h('option', { value: 'path', selected: st.url_style === 'path' }, (st.base_domain || 'domain') + '/g/gymname'))),
@@ -583,9 +641,48 @@
       const { error } = await sb.auth.updateUser({ password: pw.value }); if (error) throw new Error(error.message);
       pw.value = ''; toast('Password changed');
     }));
-    frame('Settings', [form, h('div', { class: 'card' }, h('div', { class: 'small muted' }, 'Logged in as ' + S.me.email), h('div', { class: 'row' }, h('div', { class: 'grow' }, pw), pwBtn)),
+    const everywhere = h('button', { class: 'btn ghost' }, 'Log out on all devices');
+    everywhere.addEventListener('click', busy(everywhere, async () => {
+      if (!confirm('Log out of the admin panel on every phone and computer, including this one?')) return;
+      await sb.auth.signOut({ scope: 'global' }); location.hash = '#/'; boot();
+    }));
+    frame('Settings', [form,
+      h('div', { class: 'section' }, 'Security'),
+      h('div', { class: 'card' }, h('div', { class: 'small muted' }, 'Logged in as ' + S.me.email + '. The panel logs out by itself after 12 hours without use.'),
+        h('div', { class: 'row' }, h('div', { class: 'grow' }, pw), pwBtn), h('div', { class: 'btns' }, everywhere, h('a', { class: 'btn ghost', href: '#/audit' }, 'Activity log'))),
+      h('div', { class: 'section' }, 'Export'),
+      h('div', { class: 'btns' }, h('button', { class: 'btn ghost', onclick: () => exportCsv('gyms').catch(showErr) }, 'Gyms (CSV)'), h('button', { class: 'btn ghost', onclick: () => exportCsv('payments').catch(showErr) }, 'Payments (CSV)')),
       h('button', { class: 'btn ghost block', onclick: logout }, 'Log out')]);
   };
+
+  /* ---------------- activity log + export ---------------- */
+  const ACTIONS = { bootstrap: 'Became admin', gym_create: 'Created gym', gym_update: 'Edited gym', gym_code: 'New setup code', gym_payment: 'Recorded payment',
+    gym_trial: 'Extended trial', gym_status: 'Paused / resumed gym', gym_delete: 'Deleted gym', lead_update: 'Updated lead', lead_delete: 'Deleted lead',
+    request_decide: 'Renewal payment checked', settings: 'Changed settings' };
+  routes.audit = async () => {
+    loading('Activity log');
+    const d = await api('audit');
+    frame('Activity log', [h('p', { class: 'muted small' }, 'Every change made in this admin panel, newest first.'),
+      d.audit.length ? h('div', { class: 'list' }, d.audit.map(a => h('div', { class: 'item' }, h('div', { class: 'grow' },
+        h('div', { class: 't' }, (ACTIONS[a.action] || a.action) + (a.detail && a.detail.gym ? ' · ' + a.detail.gym : '')),
+        h('div', { class: 's' }, fmtDate(a.at) + ' ' + String(a.at).slice(11, 16) + ' · ' + (a.email || ''))))))
+        : h('div', { class: 'empty' }, 'Nothing yet.')], { back: '#/settings' });
+  };
+  async function exportCsv(kind) {
+    const esc = v => { v = v == null ? '' : String(v); if (/^[=+\-@\t\r]/.test(v)) v = "'" + v; return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    let rows;
+    if (kind === 'gyms') {
+      const d = await api('overview');
+      rows = [['Gym', 'Web name', 'City', 'Owner', 'Owner phone', 'Status', 'Plan', 'Trial ends', 'Paid until', 'Members', 'Set up on', 'Created']]
+        .concat(d.gyms.map(g => [g.name, g.slug, g.city, g.owner_name, g.owner_phone, g.sub.state, g.plan, g.trial_ends, g.paid_until, g.members, g.claimed_at, g.created_at]));
+    } else {
+      const d = await api('payments');
+      rows = [['Paid on', 'Gym', 'Web name', 'Plan', 'Amount', 'Mode', 'Valid till', 'Note']].concat(d.payments.map(p => [p.paid_on, p.gym_name, p.gym_slug, p.plan, p.amount, p.mode, p.period_to, p.note]));
+    }
+    const blob = new Blob(['\ufeff' + rows.map(r => r.map(esc).join(',')).join('\r\n')], { type: 'text/csv' });
+    const a = h('a', { href: URL.createObjectURL(blob), download: (CFG.site || 'export') + '-' + kind + '-' + todayISO() + '.csv' });
+    document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
 
   /* ---------------- start ---------------- */
   if (sb) sb.auth.onAuthStateChange(ev => { if (ev === 'PASSWORD_RECOVERY') { S.recovery = true; boot(); } });

@@ -263,3 +263,8 @@ label.item.switch input:checked{background:var(--a2)}label.item.switch input:che
 [data-theme=light] .clabel{color:#0e9f63}
 .couponin{margin:0;text-transform:uppercase}
 .card.subnote{display:flex;align-items:center;gap:10px;border-color:color-mix(in srgb,var(--accent) 50%,transparent)}
+
+.plan-pick{display:block;width:100%;text-align:left;cursor:pointer;color:inherit;font:inherit}
+.plan-pick.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.qrbox{display:flex;justify-content:center;margin:12px 0}
+.qrbox img{width:200px;height:200px;border-radius:12px;background:#fff;padding:6px}

@@ -422,15 +422,87 @@
   /** Owner-only note when the trial or paid period is about to end. */
   function subBanner() {
     const sub = S.info && S.info.sub;
-    if (!sub || sub.locked) return null;
-    const wa = /^91\d{10}$/.test(S.info.contact || '') ? S.info.contact : null;
+    const out = [];
+    if (S.info && S.info.notice) out.push(h('div', { class: 'card subnote' }, h('div', { class: 'grow' }, h('b', null, 'Message from ' + (CFG.site || 'your app provider')), h('div', { class: 'small' }, S.info.notice))));
+    if (!sub || sub.locked) return out;
+    const days = (S.info.remind_days || 2);
     let text = null;
     if (sub.state === 'grace') text = 'Your app subscription ended on ' + fmtDate(sub.ends) + '. Renew now so the app doesn’t pause.';
-    else if (sub.state === 'trial' && sub.days_left <= 7) { const n = Math.max(0, sub.days_left); text = 'Free trial: ' + n + (n === 1 ? ' day' : ' days') + ' left (till ' + fmtDate(sub.ends) + ').'; }
-    else if (sub.state === 'active' && sub.days_left <= 5) text = 'Subscription renews on ' + fmtDate(sub.ends) + '.';
-    if (!text) return null;
-    return h('div', { class: 'card subnote' + (sub.state === 'grace' ? ' due' : '') }, h('div', { class: 'grow' }, h('b', null, text)),
-      wa ? h('a', { class: 'btn sm wa', href: waLink(wa, 'Hi, I want to renew the gym app for ' + S.gym + '.'), target: '_blank', rel: 'noopener' }, 'Renew') : null);
+    else if (sub.state === 'trial' && sub.days_left <= Math.max(7, days)) { const n = Math.max(0, sub.days_left); text = 'Free trial: ' + n + (n === 1 ? ' day' : ' days') + ' left (till ' + fmtDate(sub.ends) + ').'; }
+    else if (sub.state === 'active' && sub.days_left <= Math.max(5, days)) text = 'Your app plan ends on ' + fmtDate(sub.ends) + '.';
+    if (text) out.push(h('div', { class: 'card subnote' + (sub.state === 'grace' ? ' due' : '') }, h('div', { class: 'grow' }, h('b', null, text)),
+      h('a', { class: 'btn sm', href: '#/subscription' }, 'Renew')));
+    return out;
+  }
+
+  /** Once a day, from a few days before the app plan ends, the owner sees a renewal reminder. */
+  function renewPopup() {
+    const sub = S.info && S.info.sub;
+    if (!sub || sub.locked || !S.me || S.me.role !== 'owner') return;
+    const days = S.info.remind_days || 2;
+    const due = sub.state === 'grace' || (['trial', 'active'].includes(sub.state) && sub.days_left <= days);
+    if (!due) return;
+    const key = 'kg_renew_seen_' + CFG.slug;
+    let today = new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
+    try { if (localStorage.getItem(key) === today) return; localStorage.setItem(key, today); } catch (e) { /* private mode: show it anyway */ }
+    const n = Math.max(0, sub.days_left);
+    const text = sub.state === 'grace' ? 'Your app plan ended on ' + fmtDate(sub.ends) + '. The app will pause for you and your members in a few days unless you renew.'
+      : (sub.state === 'trial' ? 'Your free trial ends ' : 'Your app plan ends ') + (n === 0 ? 'today' : n === 1 ? 'tomorrow' : 'in ' + n + ' days') + ' (' + fmtDate(sub.ends) + '). Renew to keep the app running for your members.';
+    let d;
+    d = modal(sub.state === 'trial' ? 'Free trial ending' : 'Time to renew', h('p', null, text), [
+      h('button', { class: 'btn ghost', onclick: () => d.close() }, 'Later'),
+      h('a', { class: 'btn', href: '#/subscription', onclick: () => d.close() }, 'Renew now')]);
+  }
+
+  /** Owner pays the platform by UPI and tells us; the platform admin confirms it. Also used from the lock screen. */
+  async function renewPage(standalone) {
+    const call = async (action, body) => {
+      const r = await sb.rpc('gym_renew', { p_gym: CFG.slug || '', p_action: action, p_in: body || {} });
+      if (r.error) throw new Error('network');
+      if (!r.data.ok) throw new Error(r.data.error);
+      return r.data.data;
+    };
+    const d = await call('info');
+    const s = d.sub;
+    const state = s.state === 'trial' ? 'Free trial till ' + fmtDate(s.ends) : s.state === 'active' ? 'Paid till ' + fmtDate(s.ends)
+      : s.state === 'grace' ? 'Ended on ' + fmtDate(s.ends) : s.state === 'suspended' ? 'Paused' : 'Ended on ' + fmtDate(s.ends);
+    const box = h('div');
+    const draw = (plan) => {
+      if (d.pending) {
+        box.replaceChildren(h('div', { class: 'card subnote' }, h('div', { class: 'grow' }, h('b', null, 'Payment sent for checking'),
+          h('div', { class: 'small' }, (d.pending.plan === 'yearly' ? 'Yearly' : 'Monthly') + ' · ' + fmtMoney(d.pending.amount) + ' · sent ' + fmtDate(d.pending.at) + '. Your app will be switched on as soon as it is confirmed, usually within a few hours.'))));
+        return;
+      }
+      const amount = plan === 'yearly' ? d.price_year : d.price_month;
+      const save = d.price_month * 12 - d.price_year;
+      const pick = (p, title, price, note) => h('button', { class: 'card plan-pick' + (p === plan ? ' on' : ''), onclick: () => draw(p) },
+        h('div', { class: 'row between' }, h('b', null, title), h('b', null, fmtMoney(price))), note ? h('div', { class: 'small muted' }, note) : null);
+      const utr = h('input', { placeholder: 'UPI reference / UTR number (optional)', maxlength: 40, inputmode: 'numeric' });
+      const sent = h('button', { class: 'btn block' }, 'I’ve paid ' + fmtMoney(amount));
+      sent.addEventListener('click', async () => {
+        sent.disabled = true;
+        try { await call('request', { plan, utr: utr.value }); toast('Thanks! We’ll confirm your payment soon.'); return renewPage(standalone); }
+        catch (e) { showErr(e); sent.disabled = false; }
+      });
+      const upi = /@/.test(d.upi_id || '') ? { id: d.upi_id, name: d.upi_name } : null;
+      const note = (CFG.site || 'App') + ' ' + CFG.slug + ' ' + plan;
+      box.replaceChildren(
+        pick('monthly', 'Monthly', d.price_month, null),
+        pick('yearly', 'Yearly', d.price_year, save > 0 ? 'Save ' + fmtMoney(save) + ' a year' : null),
+        upi ? h('div', { class: 'card center' },
+          h('div', { class: 'muted small' }, 'Pay ' + fmtMoney(amount) + ' to ' + d.upi_name + ' (' + d.upi_id + ')'),
+          h('a', { class: 'btn block', href: upiLink(upi, amount, note) }, 'Pay with UPI app'),
+          h('div', { class: 'qrbox' }, qrImage(upiLink(upi, amount, note))),
+          h('div', { class: 'muted small' }, 'Or scan this QR from another phone.')) : null,
+        upi ? h('div', { class: 'card' }, h('div', { class: 'small' }, 'After paying, tap the button so we can confirm it.'), utr, sent) : null,
+        /^91\d{10}$/.test(d.whatsapp || '') ? h('a', { class: 'btn ghost block wa', href: waLink(d.whatsapp, 'Hi, I want to renew the app for ' + (S.gym || CFG.name) + ' (' + CFG.slug + '), ' + plan + ' plan.'), target: '_blank', rel: 'noopener' }, upi ? 'Questions? WhatsApp us' : 'Renew on WhatsApp') : null);
+    };
+    draw('yearly');
+    const content = [h('div', { class: 'hero' }, h('div', { class: 'hello' }, 'Your app plan'), h('h2', null, state)), box];
+    if (standalone) {
+      $app.className = 'boot';
+      $app.replaceChildren(h('div', { class: 'login' }, h('h1', null, 'Renew your app'), ...content, h('button', { class: 'btn ghost block', onclick: boot }, 'Back')));
+    } else frame('App plan', content, { back: '#/more' });
   }
 
   /** The gym's colours, so charts and buttons match its brand even before theme.css refreshes. */
@@ -455,7 +527,8 @@
         : owner
         ? 'Your ' + name + ' app subscription ended on ' + fmtDate(info.sub.ends) + '. Your data is safe. Renew to switch the app back on for you and your members.'
         : name + '’s app is paused right now. Please contact the gym front desk.'),
-      owner && wa ? h('a', { class: 'btn wa block', href: waLink(wa, 'Hi, I want to renew the gym app for ' + name + ' (' + (info.gym.brand ? info.gym.brand.slug : '') + ').'), target: '_blank', rel: 'noopener' }, 'Renew on WhatsApp') : null,
+      owner ? h('button', { class: 'btn block', onclick: () => renewPage(true).catch(showErr) }, 'Renew now') : null,
+      owner && wa ? h('a', { class: 'btn ghost wa block', href: waLink(wa, 'Hi, I want to renew the gym app for ' + name + ' (' + (info.gym.brand ? info.gym.brand.slug : '') + ').'), target: '_blank', rel: 'noopener' }, 'WhatsApp us') : null,
       owner ? h('button', { class: 'btn ghost block', onclick: logoutNow }, 'Log out') : null,
       h('button', { class: 'btn ghost block', onclick: boot }, 'Check again')));
   }
@@ -563,6 +636,7 @@
    * OWNER
    * ================================================================== */
   routes.owner = {};
+  routes.owner.subscription = () => renewPage(false);
 
   async function refreshOwnerBadges(d) {
     badges = { '#/payments': d.counts.waiting || 0, '#/reminders': d.counts.to_remind || 0 };
@@ -615,6 +689,7 @@
       todo.length ? h('div', { class: 'list' }, todo) : h('div', { class: 'card muted' }, 'Nothing pending. Nice!'),
       h('div', { class: 'btns' }, h('a', { class: 'btn', href: '#/member-new' }, '+ Add member'), h('a', { class: 'btn ghost', href: '#/leads/new' }, '+ Enquiry')),
     ]);
+    renewPopup();
   };
 
   routes.owner.insights = async () => {
@@ -1035,7 +1110,8 @@
         link('#/shop', 'cart', 'Shop', 'Products, stock and orders'),
         link('#/import', 'upload', 'Import members', 'Add many members from a CSV file')),
       h('div', { class: 'section' }, 'App'),
-      h('div', { class: 'list' }, link('#/settings', 'gear', 'Settings', 'Gym details, UPI, messages, backup, password'), themeRow()),
+      h('div', { class: 'list' }, link('#/settings', 'gear', 'Settings', 'Gym details, UPI, messages, backup, password'),
+        link('#/subscription', 'card', 'App plan', S.info && S.info.sub ? (S.info.sub.state === 'trial' ? 'Free trial till ' : 'Valid till ') + fmtDate(S.info.sub.ends) + ' · renew' : 'Renew this app'), themeRow()),
       h('div', { class: 'card' }, h('div', { class: 'muted small' }, 'Join link for new people (put it on Instagram / WhatsApp status)'),
         h('div', { class: 'row' }, h('code', { class: 'grow small' }, APP_URL + '#/join'), h('button', { class: 'btn sm ghost', onclick: () => navigator.clipboard.writeText(APP_URL + '#/join').then(() => toast('Link copied')) }, 'Copy'))),
       h('div', { class: 'card' }, h('div', { class: 'muted small' }, 'Member app link (share this with members)'),
