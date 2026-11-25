@@ -9,11 +9,22 @@
   const sb = window.supabase && CFG.url && CFG.key
     ? window.supabase.createClient(CFG.url, CFG.key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } })
     : null;
-  function loadToken() { try { return localStorage.getItem('gym_member_token') || null; } catch (e) { return null; } }
+  // One web address hosts many gyms, so the member login is stored per gym.
+  const TOKEN_KEY = 'gym_member_token_' + (/^[a-z0-9-]{2,40}$/.test(CFG.slug || '') ? CFG.slug : 'default');
+  function loadToken() {
+    try {
+      let t = localStorage.getItem(TOKEN_KEY);
+      if (!t && CFG.legacyToken) {          // the first gym used one shared key before; move it over once
+        t = localStorage.getItem('gym_member_token');
+        if (t) { localStorage.setItem(TOKEN_KEY, t); localStorage.removeItem('gym_member_token'); }
+      }
+      return t || null;
+    } catch (e) { return null; }
+  }
   const S = { info: null, me: null, gym: 'Gym', cart: {}, cache: {}, token: loadToken(), recovery: /type=recovery/.test(location.hash) };
   function saveToken(t) {
     S.token = t || null;
-    try { if (t) localStorage.setItem('gym_member_token', t); else localStorage.removeItem('gym_member_token'); } catch (e) { /* private mode: keep in memory */ }
+    try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch (e) { /* private mode: keep in memory */ }
   }
   const photoUrl = name => (name && /^[a-f0-9-]{36}\.jpg$/.test(name)) ? CFG.url + '/storage/v1/object/public/products/' + name : null;
   const $app = document.getElementById('app');
@@ -268,9 +279,18 @@
     return el;
   }
   let gradSeq = 0;
+  /** This gym's brand colours, read from the CSS variables set by assets/theme.css. */
+  const DEFAULT_COLORS = { a1: '#ffb300', a2: '#ff6a00', a3: '#ff2e63', accent: '#ff8a00' };
+  function brand(name) {
+    try {
+      const v = getComputedStyle(document.documentElement).getPropertyValue('--' + name).trim();
+      if (/^#[0-9a-f]{3,8}$|^rgba?\(/i.test(v)) return v;
+    } catch (e) { /* fall through */ }
+    return DEFAULT_COLORS[name];
+  }
   function gradDef(id) {
     return svg('defs', {}, [svg('linearGradient', { id, x1: '0', y1: '0', x2: '1', y2: '1' }, [
-      svg('stop', { offset: '0', 'stop-color': '#ffb300' }), svg('stop', { offset: '.55', 'stop-color': '#ff6a00' }), svg('stop', { offset: '1', 'stop-color': '#ff2e63' })])]);
+      svg('stop', { offset: '0', 'stop-color': brand('a1') }), svg('stop', { offset: '.55', 'stop-color': brand('a2') }), svg('stop', { offset: '1', 'stop-color': brand('a3') })])]);
   }
   /** Progress ring. pct 0..1 */
   function ring(pct, size, color) {
@@ -326,14 +346,14 @@
     const Y = v => 10 + (H - 34) * (1 - (v - lo) / (hi - lo));
     const d = points.map((p, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(p.v).toFixed(1)).join(' ');
     const kids = [gradDef(id), svg('path', { d, fill: 'none', stroke: 'url(#' + id + ')', 'stroke-width': 3.5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })];
-    points.forEach((p, i) => kids.push(svg('circle', { cx: X(i).toFixed(1), cy: Y(p.v).toFixed(1), r: i === points.length - 1 ? 5 : 3, fill: i === points.length - 1 ? '#ff6a00' : '#ffb300' })));
+    points.forEach((p, i) => kids.push(svg('circle', { cx: X(i).toFixed(1), cy: Y(p.v).toFixed(1), r: i === points.length - 1 ? 5 : 3, fill: i === points.length - 1 ? brand('a2') : brand('a1') })));
     [0, points.length - 1].forEach(i => { if (points[i]) { const t = svg('text', { x: X(i).toFixed(1), y: H - 4, 'text-anchor': i ? 'end' : 'start' }); t.textContent = points[i].label; kids.push(t); } });
     const last = points[points.length - 1]; const t = svg('text', { x: X(points.length - 1).toFixed(1), y: (Y(last.v) - 10).toFixed(1), 'text-anchor': 'end' }); t.textContent = last.v + ' kg'; kids.push(t);
     return svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'chart', role: 'img' }, kids);
   }
   function confetti() {
     const box = h('div', { class: 'confetti' });
-    const colors = ['#ffb300', '#ff6a00', '#ff2e63', '#22d48a', '#4aa8ff', '#ffffff'];
+    const colors = [brand('a1'), brand('a2'), brand('a3'), '#22d48a', '#4aa8ff', '#ffffff'];
     for (let i = 0; i < 90; i++) {
       const c = h('i');
       c.style.left = (Math.random() * 100) + 'vw';
@@ -561,7 +581,7 @@
       h('div', { class: 'card' }, h('h3', null, 'Check-ins, last 14 days'),
         barChart(ck.days.map(r => ({ label: String(Number(r.day.slice(8))), values: [r.n] })), ['grad'], { h: 120, top: v => v })),
       h('div', { class: 'card' }, h('h3', null, 'Busy hours (last 30 days)'),
-        barChart(ck.hours.map(r => ({ label: r.h % 12 === 0 ? '12' : String(r.h % 12), values: [r.n] })), ['#ff6a00'], { h: 110 }),
+        barChart(ck.hours.map(r => ({ label: r.h % 12 === 0 ? '12' : String(r.h % 12), values: [r.n] })), [brand('a2')], { h: 110 }),
         h('p', { class: 'muted small' }, 'From 5 am to 10 pm. Use it to plan staff and batch timings.')),
       h('div', { class: 'section' }, 'Missing for a week or more'),
       ins.missing.length ? h('div', { class: 'list' }, ins.missing.map(m => h('div', { class: 'item' },

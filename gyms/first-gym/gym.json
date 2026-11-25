@@ -1,0 +1,10 @@
+{
+  "slug": "first-gym",
+  "name": "HEX GYM",
+  "shortName": "HEX GYM",
+  "supabaseUrl": "https://ywsnaangjlkpvwfvcoxa.supabase.co",
+  "supabaseKey": "sb_publishable_B6rX4JDwh3A3CHfs1jmCcQ_gUrgePI5",
+  "colors": { "a1": "#ffb300", "a2": "#ff6a00", "a3": "#ff2e63", "accent": "#ff8a00", "bg": "#0f1115" },
+  "setupDone": true,
+  "legacyToken": true
+}
