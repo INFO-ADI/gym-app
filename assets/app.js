@@ -17,6 +17,18 @@
   }
   const photoUrl = name => (name && /^[a-f0-9-]{36}\.jpg$/.test(name)) ? CFG.url + '/storage/v1/object/public/products/' + name : null;
   const $app = document.getElementById('app');
+  function getTheme() { try { return localStorage.getItem('gym_theme') || 'dark'; } catch (e) { return 'dark'; } }
+  function applyTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    const meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.setAttribute('content', t === 'light' ? '#f4f5f9' : '#0a0b0f');
+    try { localStorage.setItem('gym_theme', t); } catch (e) { /* ignore */ }
+  }
+  applyTheme(getTheme());
+  function themeRow() {
+    const sw = h('input', { type: 'checkbox', checked: getTheme() === 'light' });
+    sw.addEventListener('change', () => applyTheme(sw.checked ? 'light' : 'dark'));
+    return h('label', { class: 'item switch' }, h('div', { class: 'ico' }, icon('sun')), h('div', { class: 'grow' }, h('div', { class: 't' }, 'Light mode'), h('div', { class: 's' }, 'Easier to read in bright daylight')), sw);
+  }
   const APP_URL = location.origin + location.pathname.replace(/index\.html$/, '');
 
   function h(tag, attrs, ...kids) {
@@ -53,6 +65,16 @@
     chart: 'M4 20V10M10 20V4M16 20v-8M22 20H2',
     fire: 'M12 22c4.4 0 7-2.9 7-6.6 0-3.1-2-5.6-3.6-7.4.1 1.8-.6 3.1-1.8 3.6C13.8 8.1 12.4 5 9.5 2c.4 3.3-1.6 5.6-3 7.4C5.4 10.9 5 12.4 5 14.4 5 19.1 7.6 22 12 22z',
     qr: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14v.01M14 20h.01M17 17h4v4h-4',
+    chat: 'M4 4h16v12H8l-4 4z',
+    wallet: 'M3 7h18v13H3zM16 14h.01M3 7l3-4h12l3 4',
+    idcard: 'M3 5h18v14H3zM7 10h4M7 14h6M15 9h3v4h-3z',
+    sun: 'M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8',
+    gear: 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1',
+    mega: 'M3 10v4h4l7 5V5L7 10zM18 9a4 4 0 0 1 0 6',
+    tag: 'M3 3h8l10 10-8 8L3 11zM7.5 7.5h.01',
+    upload: 'M12 16V4M7 9l5-5 5 5M4 20h16',
+    report: 'M6 3h9l4 4v14H6zM9 12h6M9 16h6M9 8h3',
+    scan: 'M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M7 12h10',
   };
   function icon(name) {
     const s = document.createElementNS(SVG_NS, 'svg');
@@ -62,7 +84,7 @@
     return s;
   }
 
-  const fmtMoney = n => '₹' + Number(n || 0).toLocaleString('en-IN');
+  const fmtMoney = n => { const v = Number(n || 0); return (v < 0 ? '−₹' : '₹') + Math.abs(v).toLocaleString('en-IN'); };
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   function fmtDate(iso) {
     if (!iso) return '—';
@@ -81,6 +103,7 @@
     wrong_login: 'Wrong login details.', too_many_attempts: 'Too many wrong tries. Wait 15 minutes and try again.',
     account_inactive: 'This account is not active. Please contact the gym.', login_required: 'Please log in again.',
     bad_checkin_code: 'That code is not right. Scan the poster at the front desk again.', membership_expired: 'Your membership has ended. Renew to check in.', membership_frozen: 'Your membership is paused. Ask the gym to unfreeze it.', bad_weight: 'Enter your weight in kg, e.g. 72.5',
+    category_required: 'Enter a category, e.g. Rent.',
     not_configured: 'The app is not connected to its database yet (config.js).', wrong_setup_key: 'Wrong setup key.', bad_photo: 'Photo could not be saved.', bad_phone: 'Enter a valid 10-digit mobile number.', phone_exists: 'A member with this phone already exists.',
     name_required: 'Please enter a name.', bad_plan: 'Please choose a plan.', already_waiting: 'A payment is already waiting for the owner to confirm.',
     already_decided: 'This payment was already handled.', out_of_stock: 'Sorry, not enough stock for one of the items.',
@@ -224,7 +247,7 @@
     $app.replaceChildren(top, h('main', { class: 'page' }, content), navEl);
     window.scrollTo(0, 0);
   }
-  function loading(title) { frame(title, h('div', { class: 'empty' }, h('div', { class: 'spinner' }))); }
+  function loading(title) { frame(title, [h('div', { class: 'sk sk-hero' }), h('div', { class: 'sk-row' }, h('div', { class: 'sk' }), h('div', { class: 'sk' })), h('div', { class: 'sk sk-line' }), h('div', { class: 'sk sk-line' }), h('div', { class: 'sk sk-line short' })]); }
 
   /* ---------- little visual components (all SVG built with DOM calls) ---------- */
   function svg(tag, attrs, kids) {
@@ -254,6 +277,7 @@
     const W = 340, H = opts.h || 150, pad = 18, n = rows.length, gap = n > 10 ? 3 : 8;
     const max = Math.max(1, ...rows.map(r => r.values.reduce((a, b) => a + b, 0)));
     const bw = (W - (n - 1) * gap) / n, id = 'bg' + (++gradSeq);
+    if (opts.grouped) return groupedChart(rows, colors, opts, W, H, pad, gap, bw, id);
     const kids = [gradDef(id)];
     rows.forEach((r, i) => {
       let y = H - pad;
@@ -269,6 +293,20 @@
     });
     return svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'chart', role: 'img' }, kids);
   }
+  function groupedChart(rows, colors, opts, W, H, pad, gap, bw, id) {
+    const max = Math.max(1, ...rows.flatMap(r => r.values));
+    const k = rows[0].values.length, sub = (bw - 3 * (k - 1)) / k, kids = [gradDef(id)];
+    rows.forEach((r, i) => {
+      r.values.forEach((v, j) => {
+        const hgt = (H - pad - 14) * Math.max(0, v) / max;
+        if (hgt > 0) kids.push(svg('rect', { x: (i * (bw + gap) + j * (sub + 3)).toFixed(1), y: (H - pad - hgt).toFixed(1), width: sub.toFixed(1), height: hgt.toFixed(1), rx: Math.min(5, sub / 3), fill: colors[j] === 'grad' ? 'url(#' + id + ')' : colors[j] }));
+      });
+      if (r.label) { const t = svg('text', { x: (i * (bw + gap) + bw / 2).toFixed(1), y: H - 3, 'text-anchor': 'middle' }); t.textContent = r.label; kids.push(t); }
+    });
+    return svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'chart', role: 'img' }, kids);
+  }
+  const kfmt = v => Math.abs(v) >= 1000 ? (v / 1000).toFixed(Math.abs(v) >= 10000 ? 0 : 1) + 'k' : String(v);
+
   /** Line chart for weights. points [{label, v}] */
   function lineChart(points) {
     const W = 340, H = 140, pad = 20, id = 'lg' + (++gradSeq);
@@ -424,7 +462,7 @@
 
   routes.owner.home = async () => {
     loading('Dashboard');
-    const [d, ins] = await Promise.all([api('o_dashboard'), api('o_insights')]);
+    const [d, ins, fin] = await Promise.all([api('o_dashboard'), api('o_insights'), api('o_finance')]);
     refreshOwnerBadges(d);
     const c = d.counts;
     const tile = (n, l, cls, href) => h('a', { class: 'tile ' + cls, href }, h('div', { class: 'n' }, n), h('div', { class: 'l' }, l));
@@ -435,6 +473,7 @@
     if (c.to_remind) todo.push(todoItem('#/reminders', plural(c.to_remind, 'reminder') + ' to send', 'Expiring soon or just expired'));
     if (c.new_orders) todo.push(todoItem('#/shop/orders', plural(c.new_orders, 'shop order') + ' open', 'Collect payment or hand over'));
     if (c.birthdays) todo.push(todoItem('#/reminders', plural(c.birthdays, 'birthday') + ' today', 'Send a wish on WhatsApp'));
+    if (fin.leads_due) todo.push(todoItem('#/leads', plural(fin.leads_due, 'enquiry follow-up') + ' due', 'Call or WhatsApp people who asked about joining'));
     if (ins.missing.length) todo.push(todoItem('#/insights', ins.missing.length + ' active member' + (ins.missing.length > 1 ? 's' : '') + ' missing for a week+', 'Send a “we miss you” message'));
     const warn = [];
     if (!d.upi_set) warn.push(h('a', { class: 'card', href: '#/settings' }, h('b', null, 'Add your UPI ID'), h('div', { class: 'muted small' }, 'Members can’t pay in the app until you add it in Settings.')));
@@ -446,7 +485,8 @@
       h('div', { class: 'hero' },
         h('div', { class: 'hello' }, d.month.label),
         h('div', { class: 'big-money gradtext' }, fmtMoney(total)),
-        h('div', { class: 'muted small' }, 'Memberships ' + fmtMoney(d.month.membership) + ' · Shop ' + fmtMoney(d.month.shop)),
+        h('div', { class: 'muted small' }, 'Memberships ' + fmtMoney(d.month.membership) + ' · Shop ' + fmtMoney(d.month.shop)
+          + (fin.months[5].expenses ? ' · Profit ' + fmtMoney(fin.months[5].income - fin.months[5].expenses) : '')),
         h('div', { class: 'statrow' },
           h('div', { class: 'stat' }, h('b', null, ins.checkins_today), h('span', null, 'In today')),
           h('div', { class: 'stat' }, h('b', null, ins.active_rate + '%'), h('span', null, 'Regulars')),
@@ -461,15 +501,20 @@
         barChart(ins.revenue.map(r => ({ label: r.label, values: [r.membership, r.shop] })), ['grad', '#4aa8ff'], { h: 130, top: v => v >= 1000 ? Math.round(v / 1000) + 'k' : v })),
       h('div', { class: 'section' }, 'Today'),
       todo.length ? h('div', { class: 'list' }, todo) : h('div', { class: 'card muted' }, 'Nothing pending. Nice!'),
-      h('div', { class: 'btns' }, h('a', { class: 'btn', href: '#/member-new' }, '+ Add member'), h('a', { class: 'btn ghost', href: '#/checkins' }, 'Check-ins')),
+      h('div', { class: 'btns' }, h('a', { class: 'btn', href: '#/member-new' }, '+ Add member'), h('a', { class: 'btn ghost', href: '#/leads/new' }, '+ Enquiry')),
     ]);
   };
 
   routes.owner.insights = async () => {
     loading('Insights');
-    const [ins, ck] = await Promise.all([api('o_insights'), api('o_checkins')]);
+    const [ins, ck, fin] = await Promise.all([api('o_insights'), api('o_checkins'), api('o_finance')]);
     await loadTemplates();
+    const prof = fin.months.reduce((a, r) => a + r.income - r.expenses, 0);
     frame('Insights', [
+      h('a', { class: 'card', href: '#/expenses' }, h('div', { class: 'row between' }, h('h3', null, 'Income vs expenses'), h('span', { class: 'muted small' }, 'Expenses ›')),
+        barChart(fin.months.map(r => ({ label: r.label, values: [r.income, r.expenses] })), ['grad', '#8b93a7'], { h: 150, grouped: true }),
+        h('div', { class: 'legend' }, h('span', null, h('i', { class: 'lg-a' }), 'Income'), h('span', null, h('i', { class: 'lg-c' }), 'Expenses')),
+        h('p', { class: 'small' }, 'Profit in 6 months: ', h('b', { class: prof >= 0 ? 'pos-num' : 'neg-num' }, fmtMoney(prof)))),
       h('div', { class: 'card' }, h('h3', null, 'Collection by month'),
         barChart(ins.revenue.map(r => ({ label: r.label, values: [r.membership, r.shop] })), ['grad', '#4aa8ff'], { h: 160, top: v => v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'k' : v }),
         h('div', { class: 'legend' }, h('span', null, h('i', { class: 'lg-a' }), 'Memberships'), h('span', null, h('i', { class: 'lg-b' }), 'Shop'))),
@@ -546,7 +591,8 @@
     search.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => load().catch(showErr), 250); });
     frame('Members', [
       h('div', { class: 'seg' }, tabs.map(([k, l]) => h('button', { class: k === filter ? 'on' : '', onclick: () => { location.hash = '#/members/' + k; } }, l))),
-      search, listBox,
+      h('div', { class: 'row' }, h('div', { class: 'grow' }, search), 'BarcodeDetector' in window ? h('a', { class: 'btn ghost sm scanbtn', href: '#/scancard', title: 'Scan membership card' }, icon('scan')) : null),
+      listBox,
       h('div', { class: 'btns' }, h('a', { class: 'btn', href: '#/member-new' }, '+ Add member'), h('a', { class: 'btn ghost', href: '#/import' }, 'Import CSV')),
     ], { action: h('a', { class: 'btn sm', href: '#/member-new' }, '+ Add') });
     await load();
@@ -648,20 +694,24 @@
     }));
   }
 
-  async function memberForm(id) {
+  async function memberForm(id, leadId) {
     loading(id ? 'Edit member' : 'Add member');
-    const plans = (await api('o_plans')).plans;
+    const [plansR, prefs] = await Promise.all([api('o_plans'), api('o_prefs', { body: {} })]);
+    const plans = plansR.plans;
     const m = id ? (await api('o_member', { query: { id } })).member : null;
+    const lead = leadId && S.cache.leads ? S.cache.leads.find(x => String(x.id) === String(leadId)) : null;
     const save = h('button', { class: 'btn block', type: 'submit' }, id ? 'Save changes' : 'Add member');
     const form = h('form', null,
-      field('Full name', h('input', { name: 'name', required: true, maxlength: 100, value: m ? m.name : '' })),
-      field('Mobile number', h('input', { name: 'phone', inputmode: 'tel', required: true, value: m ? shortPhone(m.phone) : '', placeholder: '98765 43210' })),
+      lead ? h('div', { class: 'note' }, 'From enquiry: ' + lead.name + (lead.interest ? ' · ' + lead.interest : '')) : null,
+      field('Full name', h('input', { name: 'name', required: true, maxlength: 100, value: m ? m.name : lead ? lead.name : '' })),
+      field('Mobile number', h('input', { name: 'phone', inputmode: 'tel', required: true, value: m ? shortPhone(m.phone) : lead ? shortPhone(lead.phone) : '', placeholder: '98765 43210' })),
       field('Plan', h('select', { name: 'plan_id' }, plans.filter(p => p.active == 1 || (m && p.id == m.plan_id)).map(p => h('option', { value: p.id, selected: m && p.id == m.plan_id }, p.name + ' · ' + fmtMoney(p.fee))))),
       m ? [
         field('Expiry date (change only to correct a mistake)', h('input', { name: 'expiry_date', type: 'date', value: m.expiry_date, required: true })),
         field('Payment due (₹)', h('input', { name: 'dues', inputmode: 'numeric', value: m.dues })),
       ] : [
         field('Start date', h('input', { name: 'start_date', type: 'date', value: todayISO(), required: true })),
+        prefs.admission_fee > 0 ? h('label', { class: 'chk' }, h('input', { type: 'checkbox', name: 'admission', checked: true }), 'Charge admission fee ' + fmtMoney(prefs.admission_fee)) : null,
         h('label', { class: 'chk' }, h('input', { type: 'checkbox', name: 'paid_now', checked: true }), 'Fee paid now'),
         field('Paid by', h('select', { name: 'mode' }, h('option', { value: 'cash' }, 'Cash'), h('option', { value: 'upi' }, 'UPI'))),
       ],
@@ -672,13 +722,14 @@
     form.addEventListener('submit', busy(save, async () => {
       const body = formData(form);
       if (id) body.id = id;
+      if (lead) body.lead_id = lead.id;
       const r = await api('o_member_save', { body });
       if (id) { toast('Saved'); location.hash = '#/member/' + id; return; }
       showPin({ id: r.id, name: body.name, phone: '91' + body.phone.replace(/\D/g, '').slice(-10) }, r.pin, false);
     }));
     frame(id ? 'Edit member' : 'Add member', h('div', { class: 'card' }, form), { back: id ? '#/member/' + id : '#/members' });
   }
-  routes.owner['member-new'] = () => memberForm(null);
+  routes.owner['member-new'] = (a, b) => memberForm(null, a === 'lead' ? b : null);
   routes.owner['member-edit'] = id => memberForm(id);
 
   /** Small CSV reader (quotes, commas inside quotes, Excel BOM). Returns objects keyed by the header row. */
@@ -799,7 +850,7 @@
     const d = await api('receipt', { query: { id } });
     const p = d.payment, g = d.gym;
     const lines = p.kind === 'shop' ? p.items.map(i => i.qty + ' × ' + i.name + ' = ' + fmtMoney(i.qty * i.price)) :
-      [(p.plan_name || 'Membership') + (p.period_to ? ' (valid till ' + fmtDate(p.period_to) + ')' : '')];
+      [(p.plan_name || 'Membership') + (p.period_to ? ' (valid till ' + fmtDate(p.period_to) + ')' : '')].concat(p.note && p.note !== 'Joining' ? [p.note] : []);
     const text = g.name + ' – Payment receipt\nReceipt: ' + p.receipt_no + '\nDate: ' + fmtDate(p.decided_at) + '\nMember: ' + p.member_name + ' (' + p.member_code + ')\n' +
       lines.join('\n') + '\nAmount paid: ' + fmtMoney(p.amount) + ' (' + p.mode.toUpperCase() + ')\nThank you!';
     frame('Receipt', [
@@ -820,26 +871,172 @@
 
   /* ---------- more ---------- */
   routes.owner.more = () => {
-    const link = (href, t, s) => h('a', { class: 'item', href }, h('div', { class: 'grow' }, h('div', { class: 't' }, t), h('div', { class: 's' }, s)), '›');
+    const link = (href, ic, t, s) => h('a', { class: 'item', href }, h('div', { class: 'ico' }, icon(ic)), h('div', { class: 'grow' }, h('div', { class: 't' }, t), h('div', { class: 's' }, s)), '›');
     frame('More', [
+      h('div', { class: 'section' }, 'Grow'),
       h('div', { class: 'list' },
-        link('#/checkins', 'Check-ins', 'Front-desk QR poster, today’s visitors'),
-        link('#/insights', 'Insights', 'Revenue trend, busy hours, missing members'),
-        link('#/workouts', 'Workout plan', 'Today’s workout shown to members'),
-        link('#/shop', 'Shop', 'Products, stock and orders'),
-        link('#/notices', 'Announcements', 'Notices members see in their app'),
-        link('#/reports', 'Reports', 'Monthly collection, joinings, best sellers'),
-        link('#/plans', 'Plans & fees', 'Monthly, quarterly, yearly…'),
-        link('#/import', 'Import members', 'Add many members from a CSV file'),
-        link('#/settings', 'Settings', 'Gym details, UPI, messages, backup, password')),
+        link('#/leads', 'chat', 'Enquiries', 'People who asked about joining, follow-ups'),
+        link('#/insights', 'chart', 'Insights', 'Profit, revenue trend, busy hours, missing members'),
+        link('#/checkins', 'qr', 'Check-ins', 'Front-desk QR poster, today’s visitors')),
+      h('div', { class: 'section' }, 'Money'),
+      h('div', { class: 'list' },
+        link('#/expenses', 'wallet', 'Expenses & profit', 'Rent, salaries, bills and monthly profit'),
+        link('#/reports', 'report', 'Reports', 'Monthly collection, joinings, best sellers'),
+        link('#/plans', 'tag', 'Plans & fees', 'Plans and the admission fee')),
+      h('div', { class: 'section' }, 'Members'),
+      h('div', { class: 'list' },
+        link('#/workouts', 'fire', 'Workout plan', 'Today’s workout shown to members'),
+        link('#/notices', 'mega', 'Announcements', 'Notices members see in their app'),
+        link('#/shop', 'cart', 'Shop', 'Products, stock and orders'),
+        link('#/import', 'upload', 'Import members', 'Add many members from a CSV file')),
+      h('div', { class: 'section' }, 'App'),
+      h('div', { class: 'list' }, link('#/settings', 'gear', 'Settings', 'Gym details, UPI, messages, backup, password'), themeRow()),
       h('div', { class: 'card' }, h('div', { class: 'muted small' }, 'Member app link (share this with members)'),
         h('div', { class: 'row' }, h('code', { class: 'grow small' }, APP_URL), h('button', { class: 'btn sm ghost', onclick: () => navigator.clipboard.writeText(APP_URL).then(() => toast('Link copied')) }, 'Copy')),
-        h('div', { class: 'qrbox' }, qrImage(APP_URL)), h('p', { class: 'muted small center' }, 'Print this QR and stick it at the front desk.')),
+        h('div', { class: 'qrbox' }, qrImage(APP_URL))),
       h('button', { class: 'btn ghost block', onclick: logoutNow }, 'Log out'),
     ]);
   };
 
+  /* ---------- enquiries ---------- */
+  routes.owner.leads = async (tab) => {
+    const openNew = tab === 'new';
+    tab = openNew ? 'open' : (tab || 'open');
+    loading('Enquiries');
+    const d = await api('o_leads', { body: { status: tab } });
+    S.cache.leads = d.leads;
+    const c = d.counts;
+    const stat = { new: 'New', following: 'Following up', joined: 'Joined', lost: 'Not interested' };
+    const card = l => {
+      const msg = 'Namaste ' + l.name.split(' ')[0] + '! ' + S.gym + ' me interest dikhane ke liye dhanyavaad 🙏 Aaj free trial ke liye aaiye! Timings ya fees ke liye yahin message karein.';
+      return h('div', { class: 'card' + (l.due ? ' due' : '') },
+        h('div', { class: 'row between' }, h('div', null, h('b', null, l.name), h('div', { class: 'muted small' }, '+91 ' + shortPhone(l.phone) + (l.source ? ' · ' + l.source : ''))),
+          h('span', { class: 'badge ' + (l.status === 'joined' ? 'active' : l.status === 'lost' ? 'archived' : l.due ? 'expired' : 'waiting') }, l.due ? 'Follow up today' : stat[l.status])),
+        l.interest ? h('div', { class: 'small' }, l.interest) : null,
+        l.notes ? h('div', { class: 'muted small' }, l.notes) : null,
+        l.next_followup && (l.status === 'new' || l.status === 'following') ? h('div', { class: 'muted small' }, 'Next follow-up: ' + fmtDate(l.next_followup)) : null,
+        l.status === 'joined' || l.status === 'lost' ? h('div', { class: 'btns' }, h('button', { class: 'btn ghost sm', onclick: () => leadForm(l) }, 'Edit'), l.member_id ? h('a', { class: 'btn ghost sm', href: '#/member/' + l.member_id }, 'Open member') : null)
+          : h('div', { class: 'btns three' },
+            h('a', { class: 'btn wa sm', href: waLink(l.phone, msg), target: '_blank', rel: 'noopener' }, 'WhatsApp'),
+            h('button', { class: 'btn ghost sm', onclick: () => leadForm(l) }, 'Update'),
+            h('a', { class: 'btn sm', href: '#/member-new/lead/' + l.id }, 'Joined ✓')));
+    };
+    frame('Enquiries', [
+      h('div', { class: 'tiles' },
+        h('div', { class: 'tile hot' }, h('div', { class: 'n' }, c.due), h('div', { class: 'l' }, 'Follow-ups due')),
+        h('div', { class: 'tile good' }, h('div', { class: 'n' }, c.joined_month + '/' + c.total_month), h('div', { class: 'l' }, 'Joined / enquired this month'))),
+      h('div', { class: 'seg' }, [['open', 'Open'], ['joined', 'Joined'], ['lost', 'Lost'], ['all', 'All']].map(([k, l]) =>
+        h('button', { class: k === tab ? 'on' : '', onclick: () => { location.hash = '#/leads/' + k; } }, l))),
+      d.leads.length ? d.leads.map(card) : h('div', { class: 'empty' }, tab === 'open' ? 'No open enquiries. Add one when someone asks about joining.' : 'Nothing here yet.'),
+      h('button', { class: 'btn block', onclick: () => leadForm(null) }, '+ New enquiry'),
+    ], { back: '#/more', action: h('button', { class: 'btn sm', onclick: () => leadForm(null) }, '+ Add') });
+    if (openNew) leadForm(null);
+  };
+
+  function leadForm(l) {
+    const tomorrow = new Date(Date.parse(todayISO() + 'T00:00:00Z') + 864e5).toISOString().slice(0, 10);
+    const form = h('form', null,
+      field('Name', h('input', { name: 'name', required: true, maxlength: 100, value: l ? l.name : '' })),
+      field('Mobile number', h('input', { name: 'phone', inputmode: 'tel', required: true, value: l ? shortPhone(l.phone) : '' })),
+      field('Interested in', h('input', { name: 'interest', maxlength: 200, value: l && l.interest ? l.interest : '', placeholder: 'e.g. weight loss, evening batch' })),
+      field('How did they hear about us?', h('select', { name: 'source' }, ['Walk-in', 'Friend / referral', 'Instagram', 'Google', 'Poster / banner', 'Other'].map(x => h('option', { selected: l && l.source === x }, x)))),
+      l ? field('Status', h('select', { name: 'status' }, [['new', 'New'], ['following', 'Following up'], ['joined', 'Joined'], ['lost', 'Not interested']].map(([v, t]) => h('option', { value: v, selected: l.status === v }, t)))) : null,
+      field('Next follow-up', h('input', { name: 'next_followup', type: 'date', value: l && l.next_followup ? l.next_followup : tomorrow })),
+      field('Notes', h('textarea', { name: 'notes', maxlength: 500 }, l && l.notes ? l.notes : '')));
+    const save = h('button', { class: 'btn' }, 'Save');
+    const del = l ? h('button', { class: 'btn bad' }, 'Delete') : h('button', { class: 'btn ghost', type: 'button' }, 'Cancel');
+    const dlg = modal(l ? 'Update enquiry' : 'New enquiry', form, [del, save]);
+    save.addEventListener('click', busy(save, async () => {
+      const body = formData(form); if (l) body.id = l.id; else body.status = 'new';
+      await api('o_lead_save', { body }); dlg.close(); toast('Saved'); if (location.hash !== '#/leads/open') location.hash = '#/leads/open'; else route();
+    }));
+    del.addEventListener('click', busy(del, async () => {
+      if (!l) return dlg.close();
+      if (!(await confirmBox('Delete this enquiry?', l.name, 'Delete', true))) return;
+      await api('o_lead_delete', { body: { id: l.id } }); dlg.close(); toast('Deleted'); route();
+    }));
+  }
+
+  /* ---------- expenses & profit ---------- */
+  routes.owner.expenses = async (month) => {
+    month = /^\d{4}-\d{2}$/.test(month || '') ? month : todayISO().slice(0, 7);
+    loading('Expenses');
+    const d = await api('o_expenses', { body: { month } });
+    const picker = h('input', { type: 'month', value: month, class: 'search' });
+    picker.addEventListener('change', () => { if (picker.value) location.hash = '#/expenses/' + picker.value; });
+    const profit = d.income - d.total;
+    const add = (x) => {
+      const form = h('form', null,
+        field('Category', h('input', { name: 'category', required: true, maxlength: 40, list: 'expcats', value: x ? x.category : '' })),
+        h('datalist', { id: 'expcats' }, ['Rent', 'Salaries', 'Electricity', 'Water', 'Equipment', 'Equipment repair', 'Cleaning', 'Marketing', 'Internet', 'Other'].map(c => h('option', { value: c }))),
+        field('Amount (₹)', h('input', { name: 'amount', inputmode: 'numeric', required: true, value: x ? x.amount : '' })),
+        field('Date', h('input', { name: 'day', type: 'date', value: x ? x.day : todayISO() })),
+        field('Note (optional)', h('input', { name: 'note', maxlength: 200, value: x && x.note ? x.note : '' })));
+      const save = h('button', { class: 'btn' }, 'Save');
+      const del = x ? h('button', { class: 'btn bad' }, 'Delete') : h('button', { class: 'btn ghost', type: 'button' }, 'Cancel');
+      const dlg = modal(x ? 'Edit expense' : 'Add expense', form, [del, save]);
+      save.addEventListener('click', busy(save, async () => { const b = formData(form); if (x) b.id = x.id; await api('o_expense_save', { body: b }); dlg.close(); toast('Saved'); route(); }));
+      del.addEventListener('click', busy(del, async () => { if (!x) return dlg.close(); await api('o_expense_delete', { body: { id: x.id } }); dlg.close(); toast('Deleted'); route(); }));
+    };
+    frame('Expenses & profit', [
+      picker,
+      h('div', { class: 'hero' },
+        h('div', { class: 'hello' }, 'Profit this month'),
+        h('div', { class: 'big-money ' + (profit >= 0 ? 'gradtext' : 'neg-num') }, fmtMoney(profit)),
+        h('div', { class: 'statrow two' },
+          h('div', { class: 'stat' }, h('b', null, fmtMoney(d.income)), h('span', null, 'Income')),
+          h('div', { class: 'stat' }, h('b', null, fmtMoney(d.total)), h('span', null, 'Expenses')))),
+      d.by_category.length ? h('div', { class: 'card' }, h('h3', null, 'Where the money went'),
+        d.by_category.map(c => h('div', { class: 'barrow' }, h('div', { class: 'row between small' }, h('span', null, c.category), h('b', null, fmtMoney(c.amount))),
+          h('div', { class: 'track' }, (() => { const f = h('i'); f.style.width = Math.max(3, Math.round(100 * c.amount / d.total)) + '%'; return f; })())))) : null,
+      h('button', { class: 'btn block', onclick: () => add(null) }, '+ Add expense'),
+      h('div', { class: 'section' }, 'Entries'),
+      d.items.length ? h('div', { class: 'list' }, d.items.map(x => h('button', { class: 'item', onclick: () => add(x) },
+        h('div', { class: 'ico' }, icon('wallet')), h('div', { class: 'grow' }, h('div', { class: 't' }, x.category), h('div', { class: 's' }, fmtDate(x.day) + (x.note ? ' · ' + x.note : ''))), h('b', null, fmtMoney(x.amount)))))
+        : h('div', { class: 'card muted' }, 'No expenses added for this month.'),
+    ], { back: '#/more' });
+  };
+
+  /* ---------- scan a member's card (owner) ---------- */
+  routes.owner.scancard = async () => {
+    const video = h('video', { class: 'scan', playsinline: true, muted: true });
+    const box = h('div', { class: 'card center' }, h('p', { class: 'muted' }, 'Starting camera…'));
+    frame('Scan member card', [box, h('p', { class: 'muted small center' }, 'Point the camera at the QR on the member’s card in their app.')], { back: '#/members' });
+    try {
+      const det = new window.BarcodeDetector({ formats: ['qr_code'] });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+      let stop = false;
+      S.stopScan = () => { stop = true; stream.getTracks().forEach(t => t.stop()); };
+      video.srcObject = stream; await video.play(); box.replaceChildren(video);
+      const tick = async () => {
+        if (stop) return;
+        try {
+          const f = await det.detect(video);
+          const mm = f.length && f[0].rawValue.match(/^GYMCARD:(GYM-\d{4,6})$/);
+          if (mm) {
+            S.stopScan(); S.stopScan = null;
+            const r = await api('o_members', { query: { filter: 'all', q: mm[1] } });
+            const hit = r.members.find(x => x.code === mm[1]);
+            if (hit) { location.hash = '#/member/' + hit.id; return; }
+            toast('No member found for ' + mm[1], true); return;
+          }
+        } catch (e) { /* keep scanning */ }
+        setTimeout(tick, 250);
+      };
+      tick();
+    } catch (e) { box.replaceChildren(h('p', { class: 'muted' }, 'Camera not available on this phone. Search the member by name or code instead.')); }
+  };
+
   /* ---------- plans ---------- */
+  function admissionCard() {
+    const inp = h('input', { inputmode: 'numeric', placeholder: '0 = no admission fee' });
+    api('o_prefs', { body: {} }).then(r => { inp.value = r.admission_fee || ''; }).catch(() => {});
+    const save = h('button', { class: 'btn' }, 'Save');
+    save.addEventListener('click', busy(save, async () => { await api('o_prefs', { body: { admission_fee: inp.value.trim() || '0' } }); toast('Admission fee saved'); }));
+    return h('div', { class: 'card' }, h('h3', null, 'Admission fee'),
+      h('p', { class: 'muted small' }, 'One-time joining fee. When you add a member you can tick “Charge admission fee” and it is added to their first payment.'),
+      h('div', { class: 'row' }, h('label', { class: 'f grow' }, 'Amount (₹)', inp), save));
+  }
   routes.owner.plans = async () => {
     loading('Plans');
     const d = await api('o_plans');
@@ -859,6 +1056,7 @@
         h('div', { class: 'grow' }, h('div', { class: 't' }, p.name), h('div', { class: 's' }, p.months + ' month' + (p.months > 1 ? 's' : ''))),
         h('b', null, fmtMoney(p.fee)), p.active == 1 ? null : h('span', { class: 'badge' }, 'Hidden')))),
       h('button', { class: 'btn block', onclick: () => edit(null) }, '+ New plan'),
+      admissionCard(),
     ], { back: '#/more' });
   };
 
@@ -1398,12 +1596,35 @@
   };
   routes.member.receipt = receiptPage;
 
+  routes.member.card = async () => {
+    loading('Membership card');
+    const d = await api('m_home');
+    const m = d.member;
+    frame('Membership card', [
+      h('div', { class: 'idcard' },
+        h('div', { class: 'row between' }, h('div', { class: 'hello' }, d.gym.name || S.gym), badge(m.status)),
+        h('div', { class: 'row idrow' },
+          h('div', { class: 'grow' },
+            h('div', { class: 'idname' }, m.name),
+            h('div', { class: 'idcode' }, m.code),
+            h('dl', { class: 'kv' }, h('dt', null, 'Plan'), h('dd', null, m.plan || '—'), h('dt', null, 'Valid till'), h('dd', null, fmtDate(m.expiry_date)))),
+          h('div', { class: 'qrmini' }, qrImage('GYMCARD:' + m.code)))),
+      h('p', { class: 'muted small center' }, 'Show this card at the front desk. The gym can scan it to find you and check you in.'),
+      h('button', { class: 'btn ghost block noprint', onclick: () => window.print() }, 'Print / save as PDF'),
+    ], { back: '#/profile' });
+  };
+
   routes.member.profile = async () => {
     const d = S.cache.home || await api('m_home');
     const m = d.member;
     frame('Profile', [
       h('div', { class: 'card' }, h('div', { class: 'row' }, h('div', { class: 'avatar' }, initials(m.name)), h('div', null, h('b', null, m.name), h('div', { class: 'muted small' }, m.code + ' · +91 ' + shortPhone(m.phone))))),
-      h('div', { class: 'list' }, h('a', { class: 'item', href: '#/history' }, h('div', { class: 'grow t' }, 'Payments & orders'), '›'), h('a', { class: 'item', href: '#/checkin' }, h('div', { class: 'grow t' }, 'Check in'), '›'), h('a', { class: 'item', href: '#/pin' }, h('div', { class: 'grow t' }, 'Change PIN'), '›')),
+      h('div', { class: 'list' },
+        h('a', { class: 'item', href: '#/card' }, h('div', { class: 'ico' }, icon('idcard')), h('div', { class: 'grow t' }, 'My membership card'), '›'),
+        h('a', { class: 'item', href: '#/history' }, h('div', { class: 'ico' }, icon('clock')), h('div', { class: 'grow t' }, 'Payments & orders'), '›'),
+        h('a', { class: 'item', href: '#/checkin' }, h('div', { class: 'ico' }, icon('qr')), h('div', { class: 'grow t' }, 'Check in'), '›'),
+        h('a', { class: 'item', href: '#/pin' }, h('div', { class: 'ico' }, icon('gear')), h('div', { class: 'grow t' }, 'Change PIN'), '›'),
+        themeRow()),
       gymInfoCard(d.gym),
       h('button', { class: 'btn ghost block', onclick: logoutNow }, 'Log out'),
     ]);
