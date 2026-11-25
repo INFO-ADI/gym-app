@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="{{THEME_COLOR}}">
+<meta name="robots" content="noindex,nofollow">
+<title>{{TITLE}}</title>
+<link rel="manifest" href="manifest.webmanifest?v={{V}}">
+<link rel="icon" href="{{ICON}}">
+<link rel="apple-touch-icon" href="{{APPLE_ICON}}">
+<link rel="stylesheet" href="/assets/app.css?v={{V}}">
+<link rel="stylesheet" href="theme.css?v={{V}}">
+</head>
+<body>
+<div id="app" class="boot"><div class="spinner" aria-label="Loading"></div></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="config.js?v={{V}}"></script>
+<script src="/assets/supabase.js?v={{V}}"></script>
+<script src="/assets/qrcode.js?v={{V}}"></script>
+<script src="/assets/app.js?v={{V}}"></script>
+</body>
+</html>

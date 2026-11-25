@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="{{THEME_COLOR}}">
+<title>{{TITLE}} · set up your app</title>
+<link rel="icon" href="{{ICON}}">
+<link rel="stylesheet" href="/assets/app.css?v={{V}}">
+<link rel="stylesheet" href="theme.css?v={{V}}">
+</head>
+<body>
+<main class="page setup">
+  <div class="center"><img class="logo" src="{{ICON}}" alt=""></div>
+  <h1 class="center">{{TITLE}} <span class="accent">setup</span></h1>
+  <div id="status" class="card"><div class="spinner"></div></div>
+  <form id="form" class="hidden" autocomplete="off">
+    <div class="card">
+      <h2>1. Your setup code</h2>
+      <p class="muted small">You received it on WhatsApp with this link.</p>
+      <label class="f">Setup code<input name="code" required placeholder="XXXX-XXXX-XXXX-XXXX" autocapitalize="characters"></label>
+    </div>
+    <div class="card" id="gymbox">
+      <h2>2. Gym details</h2>
+      <label class="f">Gym name<input name="gym_name" maxlength="80"></label>
+      <label class="f">Gym WhatsApp number<input name="gym_whatsapp" inputmode="tel" placeholder="98765 43210"></label>
+      <label class="f">Address<input name="gym_address" maxlength="200" placeholder="Shop 4, Mall Road, Kanpur"></label>
+      <label class="f">Timings<input name="gym_timings" maxlength="120" placeholder="Mon–Sat 5–11 am, 4–10 pm"></label>
+      <label class="f">UPI ID for member payments<input name="upi_id" autocapitalize="off" placeholder="gymname@okaxis"></label>
+      <label class="f">Name shown on UPI<input name="upi_name" maxlength="60"></label>
+      <h2>3. Plans and fees (₹)</h2>
+      <div id="plans"></div>
+      <h2>4. Demo data</h2>
+      <label class="chk"><input type="checkbox" name="demo"> Add fake members, products and payments to try things out. Remove them later in one tap.</label>
+    </div>
+    <div class="card">
+      <h2 id="loginTitle">5. Your owner login</h2>
+      <label class="f">Your name<input name="owner_name" required maxlength="100"></label>
+      <label class="f">Email<input type="email" name="owner_email" required autocomplete="username"></label>
+      <label class="f">Password (10+ characters)<input type="password" name="owner_password" required minlength="10" autocomplete="new-password"></label>
+      <label class="f">Repeat password<input type="password" name="owner_password2" required minlength="10" autocomplete="new-password"></label>
+      <button class="btn block" type="submit" id="go">Set up my gym app</button>
+      <p id="err" class="err-text hidden"></p>
+    </div>
+  </form>
+</main>
+<script src="config.js?v={{V}}"></script>
+<script src="/assets/supabase.js?v={{V}}"></script>
+<script src="/assets/setup.js?v={{V}}"></script>
+</body>
+</html>

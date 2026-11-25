@@ -7,7 +7,7 @@
    * ------------------------------------------------------------------ */
   const CFG = window.GYM_CONFIG || {};
   const sb = window.supabase && CFG.url && CFG.key
-    ? window.supabase.createClient(CFG.url, CFG.key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } })
+    ? window.supabase.createClient(CFG.url, CFG.key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: 'gym-auth-' + (CFG.slug || 'x') } })
     : null;
   // One web address hosts many gyms, so the member login is stored per gym.
   const TOKEN_KEY = 'gym_member_token_' + (/^[a-z0-9-]{2,40}$/.test(CFG.slug || '') ? CFG.slug : 'default');
@@ -26,7 +26,13 @@
     S.token = t || null;
     try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch (e) { /* private mode: keep in memory */ }
   }
-  const photoUrl = name => (name && /^[a-f0-9-]{36}\.jpg$/.test(name)) ? CFG.url + '/storage/v1/object/public/products/' + name : null;
+  const photoUrl = name => (name && /^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]\/[a-f0-9-]{36}\.jpg$/.test(name)) ? CFG.url + '/storage/v1/object/public/products/' + name : null;
+  /** This gym's logo (uploaded by the platform admin), or the default icon. */
+  function brandIcon(size) {
+    const b = S.info && S.info.gym && S.info.gym.brand;
+    if (b && b.logo_version > 0) return CFG.url + '/storage/v1/object/public/brand/' + b.slug + '/v' + b.logo_version + '/icon-' + size + '.png';
+    return '/assets/icons/icon-' + size + '.png';
+  }
   const $app = document.getElementById('app');
   function getTheme() { try { return localStorage.getItem('gym_theme') || 'dark'; } catch (e) { return 'dark'; } }
   function applyTheme(t) {
@@ -40,7 +46,7 @@
     sw.addEventListener('change', () => applyTheme(sw.checked ? 'light' : 'dark'));
     return h('label', { class: 'item switch' }, h('div', { class: 'ico' }, icon('sun')), h('div', { class: 'grow' }, h('div', { class: 't' }, 'Light mode'), h('div', { class: 's' }, 'Easier to read in bright daylight')), sw);
   }
-  const APP_URL = location.origin + location.pathname.replace(/index\.html$/, '');
+  const APP_URL = CFG.base || (location.origin + location.pathname.replace(/index\.html$/, ''));
 
   function h(tag, attrs, ...kids) {
     const el = document.createElement(tag);
@@ -138,7 +144,8 @@
     not_paid_yet: 'Order is not paid yet.', only_unpaid_can_cancel: 'Only unpaid orders can be cancelled.', pin_change_required: 'Please set your own PIN first.',
     bad_date: 'Please enter a valid date.', bad_amount: 'Please enter a valid amount.', server_error: 'Something went wrong on the server. Try again.',
     pin_mismatch: 'The two new PINs do not match.',
-    not_installed: 'The app is not set up yet. Open setup.php first.', network: 'No internet connection.',
+    not_installed: 'This gym app is not set up yet.', network: 'No internet connection.',
+    gym_not_found: 'This gym was not found. Check the link.', subscription_expired: 'This gym app is paused. Please contact the gym.',
   };
   const errText = e => ERR[e] || (String(e || '').startsWith('missing_column_') ? 'CSV is missing the column: ' + e.slice(15) : 'Error: ' + e);
 
@@ -147,13 +154,14 @@
     if (!sb) throw new Error('not_configured');
     const p_in = Object.assign({}, opts.query || {}, opts.body || {});
     let res;
-    try { res = await sb.rpc('gym_api', { p_action: action, p_in, p_token: S.token }); } catch (e) { throw new Error('network'); }
+    try { res = await sb.rpc('gym_api', { p_gym: CFG.slug || '', p_action: action, p_in, p_token: S.token }); } catch (e) { throw new Error('network'); }
     if (res.error) throw new Error(/fetch|network|Failed/i.test(res.error.message || '') ? 'network' : 'server_error');
     const json = res.data;
     if (!json || !json.ok) {
       const e = json ? json.error : 'server_error';
       if (e === 'login_required' && action !== 'info') { saveToken(null); S.me = null; await boot(); }
       if (e === 'pin_change_required') { location.hash = '#/pin'; }
+      if (e === 'subscription_expired' && action !== 'info') { setTimeout(boot, 50); }
       throw new Error(e);
     }
     if (json.data && json.data.token) saveToken(json.data.token);
@@ -391,13 +399,17 @@
     if (S.recovery) return newPasswordPage();
     try {
       const info = await api('info');
+      S.info = info;
+      applyBrand(info.gym && info.gym.brand);
+      if (info.sub && info.sub.locked) return lockedPage(info);
       if (!info.installed) {
         $app.className = 'boot';
-        $app.replaceChildren(h('div', { class: 'login center' }, h('h1', null, 'Almost there'), h('p', { class: 'muted' }, 'This gym app is not set up yet.'),
-          h('a', { class: 'btn', href: 'setup.html' }, 'Open setup')));
+        $app.replaceChildren(h('div', { class: 'login center' }, h('img', { class: 'logo', src: brandIcon(192), alt: '' }),
+          h('h1', null, 'Almost there'), h('p', { class: 'muted' }, 'This gym app is not set up yet. Gym owner: open the setup link you received on WhatsApp.'),
+          h('a', { class: 'btn', href: 'setup' }, 'I have a setup code')));
         return;
       }
-      S.info = info; S.me = info.me; S.gym = info.gym.name || 'Gym';
+      S.me = info.me; S.gym = info.gym.name || 'Gym';
       document.title = S.gym;
       route();
     } catch (e) {
@@ -405,6 +417,47 @@
       $app.replaceChildren(h('div', { class: 'login center' }, h('h1', null, 'Can’t open the app'), h('p', { class: 'muted' }, errText(e.message)),
         h('button', { class: 'btn', onclick: boot }, 'Try again')));
     }
+  }
+
+  /** Owner-only note when the trial or paid period is about to end. */
+  function subBanner() {
+    const sub = S.info && S.info.sub;
+    if (!sub || sub.locked) return null;
+    const wa = /^91\d{10}$/.test(S.info.contact || '') ? S.info.contact : null;
+    let text = null;
+    if (sub.state === 'grace') text = 'Your app subscription ended on ' + fmtDate(sub.ends) + '. Renew now so the app doesn’t pause.';
+    else if (sub.state === 'trial' && sub.days_left <= 7) { const n = Math.max(0, sub.days_left); text = 'Free trial: ' + n + (n === 1 ? ' day' : ' days') + ' left (till ' + fmtDate(sub.ends) + ').'; }
+    else if (sub.state === 'active' && sub.days_left <= 5) text = 'Subscription renews on ' + fmtDate(sub.ends) + '.';
+    if (!text) return null;
+    return h('div', { class: 'card subnote' + (sub.state === 'grace' ? ' due' : '') }, h('div', { class: 'grow' }, h('b', null, text)),
+      wa ? h('a', { class: 'btn sm wa', href: waLink(wa, 'Hi, I want to renew the gym app for ' + S.gym + '.'), target: '_blank', rel: 'noopener' }, 'Renew') : null);
+  }
+
+  /** The gym's colours, so charts and buttons match its brand even before theme.css refreshes. */
+  function applyBrand(b) {
+    if (!b || !b.colors) return;
+    const root = document.documentElement.style;
+    ['a1', 'a2', 'a3', 'accent'].forEach(k => { if (/^#[0-9a-f]{6}$/i.test(b.colors[k] || '')) root.setProperty('--' + k, b.colors[k]); });
+    if (/^#[0-9a-f]{6}$/i.test(b.colors.bg || '') && document.documentElement.getAttribute('data-theme') !== 'light') root.setProperty('--bg', b.colors.bg);
+  }
+
+  /** Shown when the gym's subscription has ended or the gym is paused by the platform. */
+  function lockedPage(info) {
+    $app.className = 'boot';
+    const owner = info.me && info.me.role === 'owner';
+    const wa = /^91\d{10}$/.test(info.contact || '') ? info.contact : null;
+    const name = (info.gym && info.gym.name) || 'This gym';
+    $app.replaceChildren(h('div', { class: 'login center' },
+      h('img', { class: 'logo', src: brandIcon(192), alt: '' }),
+      h('h1', null, owner && info.sub.state !== 'suspended' ? 'Subscription ended' : 'App paused'),
+      h('p', { class: 'muted' }, owner && info.sub.state === 'suspended'
+        ? 'Your ' + name + ' app is paused. Your data is safe. Message us to switch it back on.'
+        : owner
+        ? 'Your ' + name + ' app subscription ended on ' + fmtDate(info.sub.ends) + '. Your data is safe. Renew to switch the app back on for you and your members.'
+        : name + '’s app is paused right now. Please contact the gym front desk.'),
+      owner && wa ? h('a', { class: 'btn wa block', href: waLink(wa, 'Hi, I want to renew the gym app for ' + name + ' (' + (info.gym.brand ? info.gym.brand.slug : '') + ').'), target: '_blank', rel: 'noopener' }, 'Renew on WhatsApp') : null,
+      owner ? h('button', { class: 'btn ghost block', onclick: logoutNow }, 'Log out') : null,
+      h('button', { class: 'btn ghost block', onclick: boot }, 'Check again')));
   }
 
   /* ------------------------------------------------------------------ *
@@ -446,7 +499,7 @@
     };
     draw();
     $app.replaceChildren(h('div', { class: 'login' },
-      h('img', { class: 'logo', src: 'assets/icons/icon-192.png', alt: '' }),
+      h('img', { class: 'logo', src: brandIcon(192), alt: '' }),
       h('h1', null, S.gym), h('p', { class: 'muted center' }, 'Members and gym management'),
       h('div', { class: 'card' }, box)));
   }
@@ -467,7 +520,7 @@
         h('p', { class: 'muted' }, S.gym + ' will contact you soon. Come for a free trial session!')));
     }));
     $app.replaceChildren(h('div', { class: 'login' },
-      h('img', { class: 'logo', src: 'assets/icons/icon-192.png', alt: '' }),
+      h('img', { class: 'logo', src: brandIcon(192), alt: '' }),
       h('h1', null, 'Join ' + S.gym), h('p', { class: 'muted center' }, ref ? 'Your friend invited you. Leave your number and we’ll get in touch.' : 'Leave your number and we’ll get in touch.'),
       card, S.me ? null : h('p', { class: 'center small' }, h('a', { href: '#/' }, 'Already a member? Log in'))));
   }
@@ -539,6 +592,7 @@
     const ptMonth = fin.months[5].pt || 0;
     const total = d.month.membership + d.month.shop + ptMonth;
     frame('Dashboard', [
+      subBanner(),
       warn,
       h('div', { class: 'hero' },
         h('div', { class: 'hello' }, d.month.label),
@@ -1427,13 +1481,13 @@
     URL.revokeObjectURL(img.src);
     const blob = await new Promise(res => c.toBlob(res, 'image/jpeg', 0.82));
     if (!blob || blob.size > 1024 * 1024) throw new Error('photo_too_big');
-    const name = (crypto.randomUUID ? crypto.randomUUID() : ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, x => (x ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> x / 4).toString(16))) + '.jpg';
+    const name = CFG.slug + '/' + (crypto.randomUUID ? crypto.randomUUID() : ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, x => (x ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> x / 4).toString(16))) + '.jpg';
     const { error } = await sb.storage.from('products').upload(name, blob, { contentType: 'image/jpeg', upsert: false });
     if (error) throw new Error('upload_failed');
     return name;
   }
   function removePhotos(names) {
-    const ok = (names || []).filter(n => /^[a-f0-9-]{36}\.jpg$/.test(n));
+    const ok = (names || []).filter(n => /^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]\/[a-f0-9-]{36}\.jpg$/.test(n) && n.split('/')[0] === CFG.slug);
     if (ok.length && sb) sb.storage.from('products').remove(ok).catch(() => {});
   }
 
