@@ -30,15 +30,8 @@ jobs:
           sudo apt-get -qq update && sudo apt-get -qq install -y lftp >/dev/null
           SETTINGS="set ftp:ssl-allow no; set ftp:passive-mode on; set net:max-retries 5; set net:reconnect-interval-base 5; set net:timeout 30"
           L() { lftp -u "$FTP_USERNAME","$FTP_PASSWORD" -e "$SETTINGS; $1; bye" "$FTP_SERVER" 2>&1; }
-          U=${FTP_USERNAME%%.*}
-          echo "::notice title=pwd::$(L 'pwd' | sed "s/$U/USER/g")"
-          echo "::notice title=root::$(L 'cls -1a /' | tr '\n' ' ')"
-          echo "::notice title=root public_html::$(L 'cls -1a /public_html/' | tr '\n' ' ')"
-          echo "::notice title=domain public_html::$(L 'cls -1a /domains/kanpurgym.com/public_html/' | tr '\n' ' ')"
-          exit 0
-          # On Hostinger this FTP login opens inside the website folder /public_html
+          # Hostinger: the FTP root holds the website folder /public_html
           TARGET=/public_html
-          L "cls -1 /" | grep -q '^public_html/\?$' || TARGET=.
           echo "Uploading to $TARGET"
           lftp -u "$FTP_USERNAME","$FTP_PASSWORD" -e "$SETTINGS; mirror --reverse --parallel=3 --verbose=1 web/ $TARGET; bye" "$FTP_SERVER"
           echo "::notice title=Website folder now has::$(L "cls -1a $TARGET/" | tr '\n' ' ')"
