@@ -352,7 +352,9 @@
     const colors = colorPicker();
     const logo = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp' });
     const btn = h('button', { class: 'btn block', type: 'submit' }, 'Create gym app');
-    const form = h('form', null,
+    const subNote = (S.settings && S.settings.url_style === 'path') ? null : h('div', { class: 'card subnote small' },
+      '⚠️ First create this subdomain in Hostinger: hPanel → Domains → Subdomains → type the web name below, keep "Use public_html directory" ticked → Create (and check its SSL).');
+    const form = h('form', null, subNote,
       h('div', { class: 'card' },
         field('Gym name', name), field('Web name (part of the link)', slug), urlPrev,
         field('Short name under the app icon (max 20)', h('input', { name: 'short_name', maxlength: 20, placeholder: 'Power House' })),
