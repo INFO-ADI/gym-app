@@ -29,7 +29,7 @@ jobs:
           if [ -z "$FTP_SERVER" ]; then echo 'No FTP secrets yet, skipping upload'; exit 0; fi
           sudo apt-get -qq update && sudo apt-get -qq install -y lftp >/dev/null
           SETTINGS="set ftp:ssl-allow no; set ftp:passive-mode on; set net:max-retries 5; set net:reconnect-interval-base 5; set net:timeout 30"
-          # the FTP login may open in the folder that contains public_html, or inside public_html itself
-          if lftp -u "$FTP_USERNAME","$FTP_PASSWORD" -e "$SETTINGS; cls -1 /; bye" "$FTP_SERVER" | grep -qx 'public_html/\?'; then TARGET=/public_html; else TARGET=/; fi
+          # the FTP login opens in the domain folder; the website lives in its public_html folder
+          TARGET=public_html
           echo "Uploading to $TARGET"
           lftp -u "$FTP_USERNAME","$FTP_PASSWORD" -e "$SETTINGS; mirror --reverse --parallel=3 --verbose=1 web/ $TARGET; bye" "$FTP_SERVER"
