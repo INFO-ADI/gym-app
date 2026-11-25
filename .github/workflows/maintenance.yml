@@ -1,0 +1,46 @@
+# Runs every hour (and on demand):
+#  1. Removes setup.html from the website as soon as the gym app has been set up.
+#  2. Pings the database so the free Supabase project never pauses for inactivity.
+#  3. Once a month makes a tiny commit so GitHub keeps this scheduled job switched on.
+name: maintenance
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: maintenance
+jobs:
+  maintain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ask the database whether setup is done (also keeps it awake)
+        id: check
+        run: |
+          URL=$(grep -oE "url: *'[^']+'" config.js | sed -E "s/url: *'([^']+)'/\1/")
+          KEY=$(grep -oE "key: *'[^']+'" config.js | sed -E "s/key: *'([^']+)'/\1/")
+          RES=$(curl -s -m 30 -X POST "$URL/rest/v1/rpc/gym_installed" -H "apikey: $KEY" -H "Content-Type: application/json" -d '{}' || true)
+          echo "database said: $RES"
+          echo "installed=$RES" >> "$GITHUB_OUTPUT"
+      - name: Remove the setup page after setup
+        if: steps.check.outputs.installed == 'true' && hashFiles('setup.html') != ''
+        run: |
+          git config user.name "gym-maintenance-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git rm -q setup.html assets/setup.js
+          git commit -q -m "Setup finished: remove setup page"
+          git push -q
+      - name: Monthly heartbeat so GitHub keeps this job on
+        run: |
+          LAST=$(git log -1 --format=%ct)
+          NOW=$(date +%s)
+          if [ $(( (NOW - LAST) / 86400 )) -ge 45 ]; then
+            git config user.name "gym-maintenance-bot"
+            git config user.email "actions@users.noreply.github.com"
+            date -u +%Y-%m-%dT%H:%MZ > .github/heartbeat
+            git add .github/heartbeat
+            git commit -q -m "heartbeat"
+            git push -q
+          fi

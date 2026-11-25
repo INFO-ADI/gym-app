@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://ywsnaangjlkpvwfvcoxa.supabase.co; connect-src 'self' https://ywsnaangjlkpvwfvcoxa.supabase.co wss://ywsnaangjlkpvwfvcoxa.supabase.co; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'self'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex,nofollow">
+<title>Gym Manager · first-time setup</title>
+<link rel="stylesheet" href="assets/app.css?v=2.0.0">
+</head>
+<body>
+<main class="page setup">
+  <h1>Gym Manager <span class="accent">setup</span></h1>
+  <div id="status" class="card"><div class="spinner"></div></div>
+  <div id="guide" class="hidden">
+    <div class="card">
+      <h2>Before you start (2 minutes, in Supabase)</h2>
+      <ol class="small">
+        <li><b>Authentication → Sign In / Providers → Email</b>: turn <b>off</b> "Confirm email", then Save.</li>
+        <li><b>Authentication → URL Configuration</b>: set <b>Site URL</b> to this app's address (<code id="appurl"></code>) so password-reset emails open the app.</li>
+        <li>Keep your <b>setup key</b> ready. It's in README-FIRST.txt in the GYM folder on your computer, not on this website.</li>
+      </ol>
+      <p class="muted small">After setup, turn <b>off</b> "Allow new users to sign up" (Authentication → Sign In / Providers). Owner login keeps working and nobody else can create accounts.</p>
+    </div>
+    <form id="form" class="card" autocomplete="off">
+      <h2>1. Setup key</h2>
+      <label class="f">Setup key<input name="setup_key" required placeholder="XXXX-XXXX-XXXX-XXXX"></label>
+      <h2>2. Gym details</h2>
+      <label class="f">Gym name<input name="gym_name" required maxlength="80" placeholder="Iron Paradise Gym"></label>
+      <label class="f">Gym WhatsApp number<input name="gym_whatsapp" inputmode="tel" placeholder="98765 43210"></label>
+      <label class="f">Address<input name="gym_address" maxlength="200" placeholder="Shop 4, Main Road, Indore"></label>
+      <label class="f">Timings<input name="gym_timings" maxlength="120" placeholder="Mon–Sat 5–11 am, 4–10 pm"></label>
+      <label class="f">UPI ID for payments<input name="upi_id" autocapitalize="off" placeholder="gymname@okaxis"></label>
+      <label class="f">Name shown on UPI<input name="upi_name" maxlength="60"></label>
+      <p class="muted small">Tip: a free business UPI ID (PhonePe Business, Google Pay for Business, Paytm Business) works best with pre-filled amounts.</p>
+      <h2>3. Plans and fees (₹)</h2>
+      <div id="plans"></div>
+      <h2>4. Owner login</h2>
+      <label class="f">Owner name<input name="owner_name" required maxlength="100"></label>
+      <label class="f">Owner email<input type="email" name="owner_email" required autocomplete="username"></label>
+      <label class="f">Password (10+ characters)<input type="password" name="owner_password" required minlength="10" autocomplete="new-password"></label>
+      <label class="f">Repeat password<input type="password" name="owner_password2" required minlength="10" autocomplete="new-password"></label>
+      <h2>5. Demo data</h2>
+      <label class="chk"><input type="checkbox" name="demo" checked> Add 14 fake members, 7 products and sample payments to try everything. Remove them later in one tap.</label>
+      <button class="btn block" type="submit" id="go">Set up the gym app</button>
+      <p id="err" class="err-text hidden"></p>
+    </form>
+  </div>
+</main>
+<script src="config.js?v=2.0.0"></script>
+<script src="assets/supabase.js?v=2.119.2"></script>
+<script src="assets/setup.js?v=2.0.0"></script>
+</body>
+</html>
