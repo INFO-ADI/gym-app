@@ -30,11 +30,9 @@ jobs:
           sudo apt-get -qq update && sudo apt-get -qq install -y lftp >/dev/null
           SETTINGS="set ftp:ssl-allow no; set ftp:passive-mode on; set net:max-retries 5; set net:reconnect-interval-base 5; set net:timeout 30"
           L() { lftp -u "$FTP_USERNAME","$FTP_PASSWORD" -e "$SETTINGS; $1; bye" "$FTP_SERVER" 2>&1; }
-          # show where the FTP login lands (visible as notes on the GitHub run)
-          echo "::notice title=FTP home::$(L 'pwd' | tr '\n' ' ')"
-          echo "::notice title=FTP home files::$(L 'cls -1a' | tr '\n' ' ')"
-          # Hostinger keeps the website in domains/<domain>/public_html (seen from the account home) or public_html (seen from the domain folder)
-          if L 'cls -1 domains/kanpurgym.com/public_html/' | grep -q .; then TARGET=domains/kanpurgym.com/public_html; else TARGET=public_html; fi
-          echo "::notice title=Upload folder::$TARGET contains: $(L "cls -1a $TARGET/" | tr '\n' ' ')"
+          # On Hostinger this FTP login opens inside the website folder /public_html
+          TARGET=/public_html
+          L "cls -1 /" | grep -q '^public_html/\?$' || TARGET=.
           echo "Uploading to $TARGET"
           lftp -u "$FTP_USERNAME","$FTP_PASSWORD" -e "$SETTINGS; mirror --reverse --parallel=3 --verbose=1 web/ $TARGET; bye" "$FTP_SERVER"
+          echo "::notice title=Website folder now has::$(L "cls -1a $TARGET/" | tr '\n' ' ')"
