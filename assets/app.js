@@ -50,6 +50,9 @@
     clock: 'M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',
     user: 'M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM4 21c1-4 4-6 8-6s7 2 8 6',
     card: 'M3 6h18v12H3zM3 10h18',
+    chart: 'M4 20V10M10 20V4M16 20v-8M22 20H2',
+    fire: 'M12 22c4.4 0 7-2.9 7-6.6 0-3.1-2-5.6-3.6-7.4.1 1.8-.6 3.1-1.8 3.6C13.8 8.1 12.4 5 9.5 2c.4 3.3-1.6 5.6-3 7.4C5.4 10.9 5 12.4 5 14.4 5 19.1 7.6 22 12 22z',
+    qr: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14v.01M14 20h.01M17 17h4v4h-4',
   };
   function icon(name) {
     const s = document.createElementNS(SVG_NS, 'svg');
@@ -77,6 +80,7 @@
   const ERR = {
     wrong_login: 'Wrong login details.', too_many_attempts: 'Too many wrong tries. Wait 15 minutes and try again.',
     account_inactive: 'This account is not active. Please contact the gym.', login_required: 'Please log in again.',
+    bad_checkin_code: 'That code is not right. Scan the poster at the front desk again.', membership_expired: 'Your membership has ended. Renew to check in.', membership_frozen: 'Your membership is paused. Ask the gym to unfreeze it.', bad_weight: 'Enter your weight in kg, e.g. 72.5',
     not_configured: 'The app is not connected to its database yet (config.js).', wrong_setup_key: 'Wrong setup key.', bad_photo: 'Photo could not be saved.', bad_phone: 'Enter a valid 10-digit mobile number.', phone_exists: 'A member with this phone already exists.',
     name_required: 'Please enter a name.', bad_plan: 'Please choose a plan.', already_waiting: 'A payment is already waiting for the owner to confirm.',
     already_decided: 'This payment was already handled.', out_of_stock: 'Sorry, not enough stock for one of the items.',
@@ -203,7 +207,7 @@
    * Page frame & router
    * ------------------------------------------------------------------ */
   const OWNER_NAV = [['#/home', 'Home', 'home'], ['#/members', 'Members', 'users'], ['#/reminders', 'Remind', 'bell'], ['#/payments', 'Payments', 'rupee'], ['#/more', 'More', 'more']];
-  const MEMBER_NAV = [['#/home', 'Home', 'home'], ['#/renew', 'Renew', 'card'], ['#/shop', 'Shop', 'cart'], ['#/history', 'History', 'clock'], ['#/profile', 'Profile', 'user']];
+  const MEMBER_NAV = [['#/home', 'Home', 'home'], ['#/progress', 'Progress', 'fire'], ['#/renew', 'Renew', 'card'], ['#/shop', 'Shop', 'cart'], ['#/profile', 'Profile', 'user']];
   let badges = {};
 
   function frame(title, content, opts) {
@@ -222,9 +226,86 @@
   }
   function loading(title) { frame(title, h('div', { class: 'empty' }, h('div', { class: 'spinner' }))); }
 
+  /* ---------- little visual components (all SVG built with DOM calls) ---------- */
+  function svg(tag, attrs, kids) {
+    const el = document.createElementNS(SVG_NS, tag);
+    for (const k in attrs || {}) el.setAttribute(k, attrs[k]);
+    (kids || []).forEach(k => el.append(k));
+    return el;
+  }
+  let gradSeq = 0;
+  function gradDef(id) {
+    return svg('defs', {}, [svg('linearGradient', { id, x1: '0', y1: '0', x2: '1', y2: '1' }, [
+      svg('stop', { offset: '0', 'stop-color': '#ffb300' }), svg('stop', { offset: '.55', 'stop-color': '#ff6a00' }), svg('stop', { offset: '1', 'stop-color': '#ff2e63' })])]);
+  }
+  /** Progress ring. pct 0..1 */
+  function ring(pct, size, color) {
+    const r = 54, c = 2 * Math.PI * r, id = 'rg' + (++gradSeq);
+    const fg = svg('circle', { cx: 64, cy: 64, r, fill: 'none', stroke: color || 'url(#' + id + ')', 'stroke-width': 12, 'stroke-linecap': 'round',
+      'stroke-dasharray': c.toFixed(1), 'stroke-dashoffset': c.toFixed(1), transform: 'rotate(-90 64 64)' });
+    const el = svg('svg', { viewBox: '0 0 128 128', width: size || 132, height: size || 132, class: 'ring' }, [gradDef(id),
+      svg('circle', { cx: 64, cy: 64, r, fill: 'none', stroke: 'rgba(255,255,255,.08)', 'stroke-width': 12 }), fg]);
+    requestAnimationFrame(() => requestAnimationFrame(() => fg.setAttribute('stroke-dashoffset', (c * (1 - Math.max(0, Math.min(1, pct)))).toFixed(1))));
+    return el;
+  }
+  /** Bar chart. rows: [{label, values:[..]}], colors per series */
+  function barChart(rows, colors, opts) {
+    opts = opts || {};
+    const W = 340, H = opts.h || 150, pad = 18, n = rows.length, gap = n > 10 ? 3 : 8;
+    const max = Math.max(1, ...rows.map(r => r.values.reduce((a, b) => a + b, 0)));
+    const bw = (W - (n - 1) * gap) / n, id = 'bg' + (++gradSeq);
+    const kids = [gradDef(id)];
+    rows.forEach((r, i) => {
+      let y = H - pad;
+      r.values.forEach((v, k) => {
+        const hgt = (H - pad - 14) * v / max;
+        if (hgt > 0) kids.push(svg('rect', { x: (i * (bw + gap)).toFixed(1), y: (y - hgt).toFixed(1), width: bw.toFixed(1), height: hgt.toFixed(1), rx: Math.min(6, bw / 3),
+          fill: colors[k] === 'grad' ? 'url(#' + id + ')' : colors[k] }));
+        y -= hgt;
+      });
+      const total = r.values.reduce((a, b) => a + b, 0);
+      if (opts.top && total) { const t = svg('text', { x: (i * (bw + gap) + bw / 2).toFixed(1), y: (y - 4).toFixed(1), 'text-anchor': 'middle' }); t.textContent = opts.top(total); kids.push(t); }
+      if (r.label && (n <= 8 || i % 2 === n % 2 - 1 || i === n - 1)) { const t = svg('text', { x: (i * (bw + gap) + bw / 2).toFixed(1), y: H - 3, 'text-anchor': 'middle' }); t.textContent = r.label; kids.push(t); }
+    });
+    return svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'chart', role: 'img' }, kids);
+  }
+  /** Line chart for weights. points [{label, v}] */
+  function lineChart(points) {
+    const W = 340, H = 140, pad = 20, id = 'lg' + (++gradSeq);
+    const vs = points.map(p => p.v), lo = Math.min(...vs) - 1, hi = Math.max(...vs) + 1;
+    const X = i => pad + (W - 2 * pad) * (points.length === 1 ? .5 : i / (points.length - 1));
+    const Y = v => 10 + (H - 34) * (1 - (v - lo) / (hi - lo));
+    const d = points.map((p, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(p.v).toFixed(1)).join(' ');
+    const kids = [gradDef(id), svg('path', { d, fill: 'none', stroke: 'url(#' + id + ')', 'stroke-width': 3.5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })];
+    points.forEach((p, i) => kids.push(svg('circle', { cx: X(i).toFixed(1), cy: Y(p.v).toFixed(1), r: i === points.length - 1 ? 5 : 3, fill: i === points.length - 1 ? '#ff6a00' : '#ffb300' })));
+    [0, points.length - 1].forEach(i => { if (points[i]) { const t = svg('text', { x: X(i).toFixed(1), y: H - 4, 'text-anchor': i ? 'end' : 'start' }); t.textContent = points[i].label; kids.push(t); } });
+    const last = points[points.length - 1]; const t = svg('text', { x: X(points.length - 1).toFixed(1), y: (Y(last.v) - 10).toFixed(1), 'text-anchor': 'end' }); t.textContent = last.v + ' kg'; kids.push(t);
+    return svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'chart', role: 'img' }, kids);
+  }
+  function confetti() {
+    const box = h('div', { class: 'confetti' });
+    const colors = ['#ffb300', '#ff6a00', '#ff2e63', '#22d48a', '#4aa8ff', '#ffffff'];
+    for (let i = 0; i < 90; i++) {
+      const c = h('i');
+      c.style.left = (Math.random() * 100) + 'vw';
+      c.style.background = colors[i % colors.length];
+      c.animate([{ transform: 'translateY(0) rotate(0)', opacity: 1 }, { transform: 'translateY(' + (60 + Math.random() * 50) + 'vh) translateX(' + (Math.random() * 120 - 60) + 'px) rotate(' + (Math.random() * 720) + 'deg)', opacity: 0 }],
+        { duration: 1400 + Math.random() * 1200, delay: Math.random() * 250, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'forwards' });
+      box.append(c);
+    }
+    document.body.append(box);
+    setTimeout(() => box.remove(), 3000);
+  }
+  const BADGE_ICON = { first: '👟', week: '🔥', ten: '💪', month12: '📅', early: '🌅', night: '🌙', weekend: '⚡', fifty: '🏅', month30: '🏆' };
+  const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  function workoutIcon(text) { return /rest|recover/i.test(text || '') ? '🧘' : /leg/i.test(text || '') ? '🦵' : /cardio|run/i.test(text || '') ? '🏃' : '🏋️'; }
+
   const routes = {};
   function route() {
+    if (S.stopScan) { S.stopScan(); S.stopScan = null; }
     if (S.recovery) return newPasswordPage();
+    const ck = location.hash.match(/^#\/checkin\/([A-Za-z0-9]{4,12})$/);
+    if (ck && (!S.me || S.me.role !== 'member')) S.pendingCheckin = ck[1];
     if (!S.me) return loginPage();
     const parts = location.hash.replace(/^#\/?/, '').split('/');
     const name = parts[0] || 'home';
@@ -280,7 +361,7 @@
         const d = formData(form);
         if (mode === 'member') {
           const r = await api('login_member', { body: d });
-          S.me = r.me; location.hash = '#/home'; route();
+          S.me = r.me; location.hash = S.pendingCheckin ? '#/checkin/' + S.pendingCheckin : '#/home'; S.pendingCheckin = null; route();
           return;
         }
         if (!sb) throw new Error('not_configured');
@@ -343,34 +424,111 @@
 
   routes.owner.home = async () => {
     loading('Dashboard');
-    const d = await api('o_dashboard');
+    const [d, ins] = await Promise.all([api('o_dashboard'), api('o_insights')]);
     refreshOwnerBadges(d);
     const c = d.counts;
     const tile = (n, l, cls, href) => h('a', { class: 'tile ' + cls, href }, h('div', { class: 'n' }, n), h('div', { class: 'l' }, l));
+    const todoItem = (href, t, sub) => h('a', { class: 'item', href }, h('div', { class: 'grow' }, h('div', { class: 't' }, t), h('div', { class: 's' }, sub)), '›');
+    const plural = (n, w) => n + ' ' + w + (n > 1 ? 's' : '');
     const todo = [];
-    if (c.waiting) todo.push(h('a', { class: 'item', href: '#/payments' }, h('div', { class: 'grow' }, h('div', { class: 't' }, c.waiting + ' payment' + (c.waiting > 1 ? 's' : '') + ' to confirm'), h('div', { class: 's' }, 'Check your UPI app, then confirm')), '›'));
-    if (c.to_remind) todo.push(h('a', { class: 'item', href: '#/reminders' }, h('div', { class: 'grow' }, h('div', { class: 't' }, c.to_remind + ' reminder' + (c.to_remind > 1 ? 's' : '') + ' to send'), h('div', { class: 's' }, 'Expiring soon or just expired')), '›'));
-    if (c.new_orders) todo.push(h('a', { class: 'item', href: '#/shop/orders' }, h('div', { class: 'grow' }, h('div', { class: 't' }, c.new_orders + ' shop order' + (c.new_orders > 1 ? 's' : '') + ' open'), h('div', { class: 's' }, 'Collect payment or hand over')), '›'));
-    if (c.birthdays) todo.push(h('a', { class: 'item', href: '#/reminders' }, h('div', { class: 'grow' }, h('div', { class: 't' }, c.birthdays + ' birthday' + (c.birthdays > 1 ? 's' : '') + ' today'), h('div', { class: 's' }, 'Send a wish on WhatsApp')), '›'));
+    if (c.waiting) todo.push(todoItem('#/payments', plural(c.waiting, 'payment') + ' to confirm', 'Check your UPI app, then confirm'));
+    if (c.to_remind) todo.push(todoItem('#/reminders', plural(c.to_remind, 'reminder') + ' to send', 'Expiring soon or just expired'));
+    if (c.new_orders) todo.push(todoItem('#/shop/orders', plural(c.new_orders, 'shop order') + ' open', 'Collect payment or hand over'));
+    if (c.birthdays) todo.push(todoItem('#/reminders', plural(c.birthdays, 'birthday') + ' today', 'Send a wish on WhatsApp'));
+    if (ins.missing.length) todo.push(todoItem('#/insights', ins.missing.length + ' active member' + (ins.missing.length > 1 ? 's' : '') + ' missing for a week+', 'Send a “we miss you” message'));
     const warn = [];
     if (!d.upi_set) warn.push(h('a', { class: 'card', href: '#/settings' }, h('b', null, 'Add your UPI ID'), h('div', { class: 'muted small' }, 'Members can’t pay in the app until you add it in Settings.')));
     if (d.has_demo) warn.push(h('a', { class: 'card', href: '#/settings' }, h('b', null, 'Demo data is on'), h('div', { class: 'muted small' }, 'Remove the fake members and products in Settings when you’re ready.')));
     if (d.backup_due) warn.push(h('a', { class: 'card', href: '#/settings' }, h('b', null, 'Time for a backup'), h('div', { class: 'muted small' }, 'Download a backup from Settings. It takes one tap.')));
+    const total = d.month.membership + d.month.shop;
     frame('Dashboard', [
       warn,
+      h('div', { class: 'hero' },
+        h('div', { class: 'hello' }, d.month.label),
+        h('div', { class: 'big-money gradtext' }, fmtMoney(total)),
+        h('div', { class: 'muted small' }, 'Memberships ' + fmtMoney(d.month.membership) + ' · Shop ' + fmtMoney(d.month.shop)),
+        h('div', { class: 'statrow' },
+          h('div', { class: 'stat' }, h('b', null, ins.checkins_today), h('span', null, 'In today')),
+          h('div', { class: 'stat' }, h('b', null, ins.active_rate + '%'), h('span', null, 'Regulars')),
+          h('div', { class: 'stat' }, h('b', null, fmtMoney(ins.renewal_due_value)), h('span', null, 'Due in 7d')))),
       h('div', { class: 'tiles' },
         tile(c.active, 'Active members', 'good', '#/members/active'),
         tile(c.expiring, 'Expiring in 3 days', 'warn', '#/members/expiring'),
         tile(c.expired, 'Expired', 'bad', '#/members/expired'),
         tile(c.dues, 'Payment due', 'info', '#/members/dues')),
-      h('div', { class: 'card' },
-        h('div', { class: 'muted small' }, d.month.label + ' collection'),
-        h('div', { class: 'big-money' }, fmtMoney(d.month.membership + d.month.shop)),
-        h('div', { class: 'muted small' }, 'Memberships ' + fmtMoney(d.month.membership) + ' · Shop ' + fmtMoney(d.month.shop))),
+      h('a', { class: 'card', href: '#/insights' },
+        h('div', { class: 'row between' }, h('b', null, 'Collection, last 6 months'), h('span', { class: 'muted small' }, 'Insights ›')),
+        barChart(ins.revenue.map(r => ({ label: r.label, values: [r.membership, r.shop] })), ['grad', '#4aa8ff'], { h: 130, top: v => v >= 1000 ? Math.round(v / 1000) + 'k' : v })),
       h('div', { class: 'section' }, 'Today'),
       todo.length ? h('div', { class: 'list' }, todo) : h('div', { class: 'card muted' }, 'Nothing pending. Nice!'),
-      h('a', { class: 'btn block', href: '#/member-new' }, '+ Add member'),
+      h('div', { class: 'btns' }, h('a', { class: 'btn', href: '#/member-new' }, '+ Add member'), h('a', { class: 'btn ghost', href: '#/checkins' }, 'Check-ins')),
     ]);
+  };
+
+  routes.owner.insights = async () => {
+    loading('Insights');
+    const [ins, ck] = await Promise.all([api('o_insights'), api('o_checkins')]);
+    await loadTemplates();
+    frame('Insights', [
+      h('div', { class: 'card' }, h('h3', null, 'Collection by month'),
+        barChart(ins.revenue.map(r => ({ label: r.label, values: [r.membership, r.shop] })), ['grad', '#4aa8ff'], { h: 160, top: v => v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'k' : v }),
+        h('div', { class: 'legend' }, h('span', null, h('i', { class: 'lg-a' }), 'Memberships'), h('span', null, h('i', { class: 'lg-b' }), 'Shop'))),
+      h('div', { class: 'card' }, h('h3', null, 'New members by month'),
+        barChart(ins.joins.map(r => ({ label: r.label, values: [r.n] })), ['grad'], { h: 120, top: v => v })),
+      h('div', { class: 'card' }, h('h3', null, 'Check-ins, last 14 days'),
+        barChart(ck.days.map(r => ({ label: String(Number(r.day.slice(8))), values: [r.n] })), ['grad'], { h: 120, top: v => v })),
+      h('div', { class: 'card' }, h('h3', null, 'Busy hours (last 30 days)'),
+        barChart(ck.hours.map(r => ({ label: r.h % 12 === 0 ? '12' : String(r.h % 12), values: [r.n] })), ['#ff6a00'], { h: 110 }),
+        h('p', { class: 'muted small' }, 'From 5 am to 10 pm. Use it to plan staff and batch timings.')),
+      h('div', { class: 'section' }, 'Missing for a week or more'),
+      ins.missing.length ? h('div', { class: 'list' }, ins.missing.map(m => h('div', { class: 'item' },
+        h('a', { class: 'grow', href: '#/member/' + m.id }, h('div', { class: 't' }, m.name), h('div', { class: 's' }, 'Last visit ' + fmtDate(m.last))),
+        h('a', { class: 'btn wa sm', target: '_blank', rel: 'noopener', href: waLink(m.phone, 'Namaste ' + m.name.split(' ')[0] + '! ' + S.gym + ' me aapko kuch dino se nahi dekha. Sab theek? Aaj workout pe aa jaiye! 💪') }, 'Nudge'))))
+        : h('div', { class: 'card muted' }, 'Everyone is showing up. 🔥'),
+    ], { back: '#/home' });
+  };
+
+  routes.owner.checkins = async () => {
+    loading('Check-ins');
+    const ck = await api('o_checkins');
+    const url = APP_URL + '#/checkin/' + ck.code;
+    const lb = h('input', { type: 'checkbox', checked: ck.leaderboard });
+    lb.addEventListener('change', () => api('o_checkin_settings', { body: { leaderboard: lb.checked } }).then(() => toast(lb.checked ? 'Leaderboard on' : 'Leaderboard off')).catch(showErr));
+    const newCode = h('button', { class: 'btn ghost' }, 'New code');
+    newCode.addEventListener('click', busy(newCode, async () => {
+      if (!(await confirmBox('Make a new check-in code?', 'The old printed QR will stop working. Print the new one and replace it at the desk.', 'New code'))) return;
+      await api('o_checkin_settings', { body: { new_code: true } }); toast('New code ready. Print it!'); route();
+    }));
+    frame('Check-ins', [
+      h('div', { class: 'poster' },
+        h('div', { class: 'hello' }, S.gym),
+        h('h2', null, 'Scan to check in 🔥'),
+        h('div', { class: 'qrbox' }, qrImage(url)),
+        h('div', { class: 'muted small' }, 'Or type this code in the app'),
+        h('div', { class: 'code gradtext' }, ck.code)),
+      h('div', { class: 'btns noprint' }, h('button', { class: 'btn', onclick: () => window.print() }, 'Print poster'), newCode),
+      h('label', { class: 'chk noprint' }, lb, 'Show the monthly leaderboard to members (first name + initial only)'),
+      h('div', { class: 'section noprint' }, 'Today (' + ck.today.length + ')'),
+      ck.today.length ? h('div', { class: 'list noprint' }, ck.today.map(x => h('a', { class: 'item', href: '#/member/' + x.id },
+        h('div', { class: 'avatar' }, initials(x.name)), h('div', { class: 'grow' }, h('div', { class: 't' }, x.name), h('div', { class: 's' }, x.code + (x.by_owner ? ' · added by you' : ''))), h('b', null, x.time))))
+        : h('div', { class: 'card muted noprint' }, 'No check-ins yet today.'),
+      h('div', { class: 'card noprint' }, h('h3', null, 'Last 14 days'), barChart(ck.days.map(r => ({ label: String(Number(r.day.slice(8))), values: [r.n] })), ['grad'], { h: 120, top: v => v })),
+    ], { back: '#/more' });
+  };
+
+  routes.owner.workouts = async () => {
+    loading('Workout plan');
+    const w = (await api('o_workouts', { body: {} })).days;
+    const inputs = DAY_NAMES.map((dname, i) => h('input', { value: w[String(i + 1)] || '', maxlength: 200, 'data-day': i + 1 }));
+    const save = h('button', { class: 'btn block' }, 'Save plan');
+    save.addEventListener('click', busy(save, async () => {
+      const days = {}; inputs.forEach(x => { days[x.getAttribute('data-day')] = x.value; });
+      await api('o_workouts', { body: { days } }); toast('Workout plan saved');
+    }));
+    frame('Workout plan', [
+      h('p', { class: 'muted small' }, 'Members see today’s workout on their home screen.'),
+      h('div', { class: 'card' }, DAY_NAMES.map((dname, i) => field(dname, inputs[i])), save),
+    ], { back: '#/more' });
   };
 
   /* ---------- members ---------- */
@@ -438,6 +596,7 @@
         h('a', { class: 'btn wa', href: waLink(m.phone, reminderMsg()), target: '_blank', rel: 'noopener', onclick: () => api('o_mark_reminded', { body: { id: m.id } }).catch(() => {}) }, 'WhatsApp'),
         h('a', { class: 'btn ghost', href: 'tel:+' + m.phone }, 'Call'),
         h('a', { class: 'btn ghost', href: '#/member-edit/' + m.id }, 'Edit')),
+      m.status === 'active' || m.status === 'expiring' ? h('button', { class: 'btn ghost block', onclick: () => api('o_checkin_member', { body: { id: m.id } }).then(r => toast(r.fresh ? 'Checked in for today ✓' : 'Already checked in today')).catch(showErr) }, '✓ Mark check-in for today') : null,
       h('div', { class: 'section' }, 'Payments'),
       pays.length ? h('div', { class: 'list' }, pays) : h('div', { class: 'card muted' }, 'No payments yet.'),
       d.orders.length ? [h('div', { class: 'section' }, 'Shop orders'), h('div', { class: 'list' }, d.orders.map(orderRow))] : null,
@@ -664,6 +823,9 @@
     const link = (href, t, s) => h('a', { class: 'item', href }, h('div', { class: 'grow' }, h('div', { class: 't' }, t), h('div', { class: 's' }, s)), '›');
     frame('More', [
       h('div', { class: 'list' },
+        link('#/checkins', 'Check-ins', 'Front-desk QR poster, today’s visitors'),
+        link('#/insights', 'Insights', 'Revenue trend, busy hours, missing members'),
+        link('#/workouts', 'Workout plan', 'Today’s workout shown to members'),
         link('#/shop', 'Shop', 'Products, stock and orders'),
         link('#/notices', 'Announcements', 'Notices members see in their app'),
         link('#/reports', 'Reports', 'Monthly collection, joinings, best sellers'),
@@ -941,17 +1103,35 @@
 
   routes.member.home = async () => {
     loading('Home');
-    const d = await api('m_home');
-    S.cache.home = d;
+    const [d, st] = await Promise.all([api('m_home'), api('m_stats')]);
+    S.cache.home = d; S.cache.stats = st;
     const m = d.member;
-    const cls = m.status === 'frozen' ? '' : m.days_left > 7 ? 'good' : m.days_left >= 0 ? 'warn' : 'bad';
-    const g = d.gym;
-    frame('Hi, ' + m.name.split(' ')[0], [
-      h('div', { class: 'mcard' },
-        h('div', { class: 'row between' }, h('div', { class: 'muted small' }, m.code + ' · ' + (m.plan || 'Membership')), badge(m.status)),
-        m.status === 'frozen' ? h('div', { class: 'days' }, 'Paused')
-          : [h('div', { class: 'days ' + cls }, Math.abs(m.days_left)), h('div', null, m.days_left >= 0 ? (m.days_left === 1 ? 'day left' : 'days left') : 'days since expiry')],
-        h('div', { class: 'muted small' }, 'Valid till ' + fmtDate(m.expiry_date))),
+    const color = m.status === 'frozen' ? '#4aa8ff' : m.days_left > 7 ? null : m.days_left >= 0 ? '#ffb020' : '#ff4d6d';
+    const pct = m.status === 'frozen' ? 1 : Math.max(0, m.days_left) / st.plan_days;
+    const t = todayISO();
+    const monday = new Date(Date.parse(t + 'T00:00:00Z') - ((new Date(t + 'T00:00:00Z').getUTCDay() + 6) % 7) * 864e5);
+    const week = DAY_NAMES.map((dn, i) => { const iso = new Date(monday.getTime() + i * 864e5).toISOString().slice(0, 10);
+      return h('div', { class: (st.week.indexOf(iso) >= 0 ? 'on ' : '') + (iso === t ? 'today' : '') }, h('i'), dn.slice(0, 1)); });
+    const earned = st.badges.filter(b => b.got);
+    const canCheckin = m.status !== 'frozen' && m.days_left >= 0;
+    frame('Hi, ' + m.name.split(' ')[0] + ' 👋', [
+      h('div', { class: 'hero' },
+        h('div', { class: 'row' },
+          h('div', { class: 'ringwrap' }, ring(pct, 132, color), h('div', { class: 'ringtxt' },
+            h('b', null, m.status === 'frozen' ? '❄' : Math.abs(m.days_left)), h('span', null, m.status === 'frozen' ? 'paused' : m.days_left >= 0 ? 'days left' : 'days over'))),
+          h('div', { class: 'grow' },
+            h('div', { class: 'hello' }, m.plan || 'Membership'),
+            h('h2', null, st.streak ? h('span', null, h('span', { class: 'flame' }, '🔥'), ' ' + st.streak + '-day streak') : 'Let’s go!'),
+            h('div', { class: 'muted small' }, 'Valid till ' + fmtDate(m.expiry_date)), h('div', { class: 'small' }, badge(m.status)))),
+        h('div', { class: 'week' }, week),
+        h('div', { class: 'statrow' },
+          h('div', { class: 'stat' }, h('b', null, st.month), h('span', null, 'This month')),
+          h('div', { class: 'stat' }, h('b', null, st.best_streak), h('span', null, 'Best streak')),
+          h('div', { class: 'stat' }, h('b', null, earned.length + '/' + st.badges.length), h('span', null, 'Badges')))),
+      canCheckin ? (st.checked_in_today ? h('div', { class: 'checkin-btn done' }, '✓ Checked in today. Crush it!')
+        : h('a', { class: 'checkin-btn', href: '#/checkin' }, '🔥 Check in')) : null,
+      st.workout_today ? h('div', { class: 'card workout' }, h('div', { class: 'ico' }, workoutIcon(st.workout_today)),
+        h('div', { class: 'grow' }, h('div', { class: 'hello' }, 'Today’s workout'), h('b', null, st.workout_today))) : null,
       m.dues > 0 ? h('div', { class: 'card' }, h('b', null, 'Payment due: ' + fmtMoney(m.dues)), h('div', { class: 'muted small' }, 'Please pay to keep your membership active.')) : null,
       d.waiting.length ? h('div', { class: 'card' }, h('b', null, 'Waiting for confirmation'), d.waiting.map(p => h('div', { class: 'muted small' }, fmtMoney(p.amount) + ' · sent ' + fmtDateTime(p.created_at))),
         h('div', { class: 'muted small' }, 'The gym will confirm after checking the payment.')) : null,
@@ -959,7 +1139,87 @@
       d.notices.length ? [h('div', { class: 'section' }, 'Announcements'), h('div', { class: 'list' }, d.notices.map(n => h('div', { class: 'item' }, h('div', { class: 'grow' },
         h('div', null, (n.pinned == 1 ? '📌 ' : '') + n.body), h('div', { class: 's' }, fmtDate(n.created_at))))))] : null,
       h('div', { class: 'section' }, 'Gym'),
-      gymInfoCard(g),
+      gymInfoCard(d.gym),
+    ]);
+  };
+
+  /** Check-in: from the desk QR link (#/checkin/CODE), the in-app scanner, or by typing the code. */
+  routes.member.checkin = async (code) => {
+    const doCheckin = async c => {
+      const r = await api('m_checkin', { body: { code: c } });
+      if (r.fresh) confetti();
+      frame('Checked in', [h('div', { class: 'hero center' },
+        h('div', { class: 'shout gradtext' }, r.fresh ? 'YOU’RE IN!' : 'ALREADY IN'),
+        h('h2', null, h('span', { class: 'flame' }, '🔥'), ' ' + r.streak + '-day streak'),
+        h('p', { class: 'muted' }, r.month + ' workout' + (r.month === 1 ? '' : 's') + ' this month. Keep going!')),
+        h('a', { class: 'btn block', href: '#/home' }, 'Done'), h('p'), h('a', { class: 'btn ghost block', href: '#/progress' }, 'See my progress')], { back: '#/home' });
+    };
+    if (code) {
+      try { await doCheckin(code); } catch (e) { showErr(e); location.hash = '#/checkin'; }
+      return;
+    }
+    const video = h('video', { class: 'scan', playsinline: true, muted: true });
+    const scanBox = h('div', { class: 'card center' });
+    const codeIn = h('input', { maxlength: 12, autocapitalize: 'characters', placeholder: 'e.g. 3F9A27C1' });
+    const go = h('button', { class: 'btn block' }, 'Check in');
+    go.addEventListener('click', busy(go, () => doCheckin(codeIn.value.trim())));
+    const startScan = async () => {
+      try {
+        const det = new window.BarcodeDetector({ formats: ['qr_code'] });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        let stop = false;
+        S.stopScan = () => { stop = true; stream.getTracks().forEach(tr => tr.stop()); };
+        video.srcObject = stream; await video.play();
+        scanBox.replaceChildren(video, h('p', { class: 'muted small' }, 'Point at the QR poster at the front desk.'));
+        const tick = async () => {
+          if (stop) return;
+          try {
+            const found = await det.detect(video);
+            const raw = found.length ? found[0].rawValue : '';
+            const mm = raw.match(/#\/checkin\/([A-Za-z0-9]{4,12})/) || raw.match(/^([A-Za-z0-9]{8})$/);
+            if (mm) { S.stopScan(); S.stopScan = null; await doCheckin(mm[1]).catch(showErr); return; }
+          } catch (e) { /* keep scanning */ }
+          setTimeout(tick, 250);
+        };
+        tick();
+      } catch (e) {
+        scanBox.replaceChildren(h('p', { class: 'muted' }, 'Camera not available. Use your phone’s camera app on the poster, or type the code below.'));
+      }
+    };
+    const hasScanner = 'BarcodeDetector' in window && navigator.mediaDevices;
+    scanBox.append(hasScanner ? h('button', { class: 'btn block', onclick: startScan }, '📷 Scan the desk QR')
+      : h('p', { class: 'muted' }, 'Open your phone’s camera and point it at the QR poster at the front desk, or type the code below.'));
+    frame('Check in', [scanBox, h('div', { class: 'card' }, field('Code on the poster', codeIn), go)], { back: '#/home' });
+  };
+
+  routes.member.progress = async () => {
+    loading('Progress');
+    const st = await api('m_stats');
+    const kg = h('input', { inputmode: 'decimal', placeholder: 'e.g. 72.5', maxlength: 5 });
+    const saveKg = h('button', { class: 'btn' }, 'Save');
+    saveKg.addEventListener('click', busy(saveKg, async () => { await api('m_weight', { body: { kg: kg.value.trim() } }); toast('Weight saved'); route(); }));
+    const w = st.weights;
+    const change = w.length > 1 ? (w[w.length - 1].kg - w[0].kg) : 0;
+    frame('Progress', [
+      h('div', { class: 'hero' },
+        h('div', { class: 'statrow' },
+          h('div', { class: 'stat' }, h('b', null, h('span', { class: 'flame' }, '🔥'), st.streak), h('span', null, 'Streak')),
+          h('div', { class: 'stat' }, h('b', null, st.month), h('span', null, 'This month')),
+          h('div', { class: 'stat' }, h('b', null, st.total), h('span', null, 'All time')))),
+      h('div', { class: 'section' }, 'Badges'),
+      h('div', { class: 'bgrid' }, st.badges.map(b => h('div', { class: 'bdg' + (b.got ? ' got' : '') }, h('div', { class: 'medal' }, BADGE_ICON[b.id] || '★'), h('b', null, b.name), h('span', null, b.hint)))),
+      h('div', { class: 'section' }, 'Body weight'),
+      h('div', { class: 'card' },
+        w.length ? [lineChart(w.map(x => ({ label: fmtDate(x.day).slice(0, -5), v: Number(x.kg) }))),
+          w.length > 1 ? h('p', { class: 'muted small' }, (change <= 0 ? '▼ ' : '▲ ') + Math.abs(change).toFixed(1) + ' kg since ' + fmtDate(w[0].day)) : null]
+          : h('p', { class: 'muted small' }, 'Log your weight every week to see your progress here.'),
+        h('div', { class: 'row' }, h('label', { class: 'f grow' }, 'Today’s weight (kg)', kg), saveKg)),
+      st.leaderboard ? [h('div', { class: 'section' }, 'Top this month'),
+        st.leaderboard.length ? h('div', { class: 'list' }, st.leaderboard.map((x, i) => h('div', { class: 'lead p' + (i + 1) + (x.me ? ' me' : '') },
+          h('div', { class: 'pos' }, i + 1), h('div', { class: 'grow' }, x.name + (x.me ? ' (you)' : '')), h('b', null, x.visits + ' 🔥'))))
+          : h('div', { class: 'card muted' }, 'Be the first to check in this month!')] : null,
+      h('div', { class: 'section' }, 'Weekly workout plan'),
+      h('div', { class: 'list' }, DAY_NAMES.map((dn, i) => h('div', { class: 'item' }, h('b', null, dn), h('div', { class: 'grow s' }, st.workouts[String(i + 1)] || '—')))),
     ]);
   };
 
@@ -1143,7 +1403,7 @@
     const m = d.member;
     frame('Profile', [
       h('div', { class: 'card' }, h('div', { class: 'row' }, h('div', { class: 'avatar' }, initials(m.name)), h('div', null, h('b', null, m.name), h('div', { class: 'muted small' }, m.code + ' · +91 ' + shortPhone(m.phone))))),
-      h('div', { class: 'list' }, h('a', { class: 'item', href: '#/pin' }, h('div', { class: 'grow t' }, 'Change PIN'), '›')),
+      h('div', { class: 'list' }, h('a', { class: 'item', href: '#/history' }, h('div', { class: 'grow t' }, 'Payments & orders'), '›'), h('a', { class: 'item', href: '#/checkin' }, h('div', { class: 'grow t' }, 'Check in'), '›'), h('a', { class: 'item', href: '#/pin' }, h('div', { class: 'grow t' }, 'Change PIN'), '›')),
       gymInfoCard(d.gym),
       h('button', { class: 'btn ghost block', onclick: logoutNow }, 'Log out'),
     ]);

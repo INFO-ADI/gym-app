@@ -1,6 +1,6 @@
 /* Gym Manager service worker: caches the app shell only. Member data (Supabase) is never cached. */
-const CACHE = 'gym-shell-2.0.0';
-const SHELL = ['./', 'index.html', 'config.js?v=2.0.0', 'assets/app.css?v=2.0.0', 'assets/app.js?v=2.0.0', 'assets/qrcode.js?v=1.4.4',
+const CACHE = 'gym-shell-2.1.0';
+const SHELL = ['./', 'index.html', 'config.js?v=2.0.0', 'assets/app.css?v=2.1.0', 'assets/app.js?v=2.1.0', 'assets/qrcode.js?v=1.4.4',
   'assets/supabase.js?v=2.119.2', 'assets/icons/icon-192.png', 'manifest.webmanifest'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => {
