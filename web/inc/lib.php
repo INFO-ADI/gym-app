@@ -29,8 +29,12 @@ function send_headers(string $type, bool $html = true): void {
     if ($html) {
         $s = supabase_origin();
         $w = preg_replace('/^https:/', 'wss:', $s);
-        header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: $s; " .
-            "connect-src 'self' $s $w; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'self'; object-src 'none'; frame-ancestors 'none'");
+        // Razorpay Checkout (auto-pay set-up) loads its script and opens its own secure frame
+        $rz = 'https://checkout.razorpay.com https://api.razorpay.com';
+        header("Content-Security-Policy: default-src 'self'; script-src 'self' https://checkout.razorpay.com; style-src 'self' 'unsafe-inline'; " .
+            "img-src 'self' data: blob: $s https://*.razorpay.com; frame-src $rz; " .
+            "connect-src 'self' $s $w https://api.razorpay.com https://lumberjack.razorpay.com; manifest-src 'self'; worker-src 'self'; " .
+            "base-uri 'none'; form-action 'self' https://api.razorpay.com; object-src 'none'; frame-ancestors 'none'");
         header('X-Frame-Options: DENY');
         header('Permissions-Policy: camera=(self), microphone=(), geolocation=()');
         header('Cache-Control: no-cache');

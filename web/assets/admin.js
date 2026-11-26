@@ -500,6 +500,7 @@
           h('div', { class: 'grow' }, h('div', { class: 'row between' }, h('h2', null, g.name), stateBadge(g)),
             h('a', { class: 'small', href: gymUrl(g.slug), target: '_blank', rel: 'noopener' }, gymUrl(g.slug).replace(/^https?:\/\//, '')))),
         h('div', { class: 'small' }, stateLine(g)),
+        g.autopay ? h('div', { class: 'small' }, 'Auto-pay: ' + ({ active: '✓ on', authenticated: '✓ on, first charge pending', pending: '⚠ payment failed, Razorpay retrying', halted: '✗ stopped after failed payments', cancelled: 'cancelled', completed: 'completed', created: 'started but not approved' }[g.autopay.status] || g.autopay.status) + ' · ' + (g.autopay.plan || '')) : null,
         h('div', { class: 'statrow' },
           h('div', { class: 'stat' }, h('b', null, g.members), h('span', null, 'Members')),
           h('div', { class: 'stat' }, h('b', null, g.active_members), h('span', null, 'Active')),
@@ -558,6 +559,10 @@
     };
     const gymRow = g => {
       const rs = REASON[g.reason] || [g.reason, ''];
+      if (g.autopay && ['active', 'authenticated'].includes(g.autopay.status) && ['trial_ending', 'plan_ending'].includes(g.reason)) {
+        return h('div', { class: 'card' }, h('div', { class: 'row between' }, h('a', { href: '#/gym/' + g.id }, h('b', null, g.name)), h('span', { class: 'badge active' }, 'Auto-pay on')),
+          h('div', { class: 'small' }, stateLine(g) + '. Razorpay will charge automatically, no reminder needed.'));
+      }
       const send = g.owner_phone ? h('a', { class: 'btn sm wa', href: waLink(g.owner_phone, reminderText(g)), target: '_blank', rel: 'noopener' }, g.reminded_today ? 'Send again' : 'Send') : h('a', { class: 'btn sm ghost', href: '#/gym/' + g.id }, 'Add phone');
       send.addEventListener('click', () => { if (g.owner_phone) api('reminded', { id: g.id, kind: g.reason }).then(() => setTimeout(routes.remind, 800)).catch(() => {}); });
       return h('div', { class: 'card' },
@@ -630,6 +635,7 @@
       field('Start reminding gyms this many days before the plan ends', h('input', { name: 'remind_days', inputmode: 'numeric', value: st.remind_days || 2 })),
       field('Notice to all gym owners (shown on their dashboard, leave empty for none)', h('textarea', { name: 'notice', maxlength: 300 }, st.notice || '')),
       field('Demo gym web name (used for "See demo" on the website)', h('input', { name: 'demo_slug', value: st.demo_slug || '', autocapitalize: 'off' })),
+      field('Razorpay auto-pay for gym owners', h('select', { name: 'autopay' }, h('option', { value: 'off', selected: st.autopay !== 'on' }, 'Off (UPI QR only)'), h('option', { value: 'on', selected: st.autopay === 'on' }, 'On'))),
       field('Gym app addresses', h('select', { name: 'url_style' }, h('option', { value: 'subdomain', selected: st.url_style !== 'path' }, 'gymname.' + (st.base_domain || 'domain')),
         h('option', { value: 'path', selected: st.url_style === 'path' }, (st.base_domain || 'domain') + '/g/gymname'))),
       h('button', { class: 'btn block', type: 'submit' }, 'Save settings'));

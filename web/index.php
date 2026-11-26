@@ -53,6 +53,14 @@ if ($slug === null) {
             header('Cache-Control: no-cache');
             echo 'window.SITE_CONFIG = ' . js_json($siteCfg) . ";\n";
             exit;
+        case '/terms':
+        case '/privacy':
+        case '/refunds':
+        case '/contact':
+            send_headers('text/html; charset=utf-8');
+            $pages = ['/terms' => 'Terms of service', '/privacy' => 'Privacy policy', '/refunds' => 'Cancellation and refunds', '/contact' => 'Contact us'];
+            echo render('policy-' . substr($path, 1) . '.html', ['V' => e(VERSION), 'SITE' => e(SITE_NAME), 'DOMAIN' => e($base), 'TITLE' => e($pages[$path])]);
+            exit;
         case '/robots.txt':
             header('Content-Type: text/plain');
             echo "User-agent: *\nDisallow: /admin/\nDisallow: /g/\n";

@@ -145,7 +145,7 @@
     bad_date: 'Please enter a valid date.', bad_amount: 'Please enter a valid amount.', server_error: 'Something went wrong on the server. Try again.',
     pin_mismatch: 'The two new PINs do not match.',
     not_installed: 'This gym app is not set up yet.', network: 'No internet connection.',
-    gym_not_found: 'This gym was not found. Check the link.', subscription_expired: 'This gym app is paused. Please contact the gym.',
+    gym_not_found: 'This gym was not found. Check the link.', subscription_expired: 'This gym app is paused. Please contact the gym.', autopay_not_ready: 'Auto-pay is not available yet. Use UPI below.', autopay_already_on: 'Auto-pay is already on.', razorpay_error: 'Razorpay could not start auto-pay. Try again in a minute.', verify_failed: 'Could not confirm auto-pay. Check again in a minute.',
   };
   const errText = e => ERR[e] || (String(e || '').startsWith('missing_column_') ? 'CSV is missing the column: ' + e.slice(15) : 'Error: ' + e);
 
@@ -454,6 +454,68 @@
       h('a', { class: 'btn', href: '#/subscription', onclick: () => d.close() }, 'Renew now')]);
   }
 
+  /** Razorpay auto-pay: the owner approves UPI AutoPay / card once and is charged every month or year automatically. */
+  async function rzpCall(body) {
+    const r = await sb.functions.invoke('razorpay', { body: Object.assign({ gym: CFG.slug }, body) });
+    if (r.error) throw new Error('network');
+    if (!r.data || !r.data.ok) throw new Error((r.data && r.data.error) || 'server_error');
+    return r.data;
+  }
+  function loadCheckout() {
+    if (window.Razorpay) return Promise.resolve();
+    return new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      s.onload = () => res(); s.onerror = () => rej(new Error('network'));
+      document.head.append(s);
+    });
+  }
+  function autopayCard(d, standalone) {
+    if (!d.autopay_on) return null;
+    const ap = d.autopay;
+    const again = () => renewPage(standalone).catch(showErr);
+    if (ap && ['active', 'authenticated', 'pending'].includes(ap.status)) {
+      const stop = h('button', { class: 'btn sm ghost' }, 'Stop auto-pay');
+      stop.addEventListener('click', async () => {
+        if (!(await confirmBox('Stop auto-pay?', 'You will then need to renew by hand before your plan ends.', 'Stop auto-pay', true))) return;
+        stop.disabled = true;
+        try { await rzpCall({ action: 'cancel' }); toast('Auto-pay stopped'); again(); } catch (e) { showErr(e); stop.disabled = false; }
+      });
+      return h('div', { class: 'card subnote' }, h('div', { class: 'grow' },
+        h('b', null, ap.status === 'pending' ? 'Auto-pay: last payment failed, retrying' : '✓ Auto-pay is on'),
+        h('div', { class: 'small' }, (ap.plan === 'yearly' ? 'Yearly ' + fmtMoney(d.price_year) : 'Monthly ' + fmtMoney(d.price_month)) +
+          ' is charged automatically when your plan ends. Nothing to do.')), stop);
+    }
+    let plan = 'yearly';
+    const pick = h('select', null, h('option', { value: 'yearly' }, 'Yearly · ' + fmtMoney(d.price_year)), h('option', { value: 'monthly' }, 'Monthly · ' + fmtMoney(d.price_month)));
+    pick.addEventListener('change', () => { plan = pick.value; });
+    const go = h('button', { class: 'btn block' }, 'Turn on auto-pay');
+    go.addEventListener('click', async () => {
+      go.disabled = true;
+      try {
+        const [r] = await Promise.all([rzpCall({ action: 'start', plan }), loadCheckout()]);
+        const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#22d48a';
+        const rz = new window.Razorpay({
+          key: r.key, subscription_id: r.subscription_id, name: CFG.site || 'KanpurGym',
+          description: (plan === 'yearly' ? 'Yearly' : 'Monthly') + ' app plan · ' + (S.gym || CFG.name),
+          prefill: { email: (S.me && S.me.email) || '' }, theme: { color: accent },
+          handler: async resp => {
+            try { await rzpCall({ action: 'verify', payment_id: resp.razorpay_payment_id, signature: resp.razorpay_signature }); toast('Auto-pay is on. Thank you!'); }
+            catch (e) { toast('Auto-pay set up. It may take a minute to show.'); }
+            again();
+          },
+          modal: { ondismiss: () => { go.disabled = false; } },
+        });
+        rz.on('payment.failed', () => { toast('Payment did not go through. Try again or use another UPI app.', true); go.disabled = false; });
+        rz.open();
+      } catch (e) { showErr(e); go.disabled = false; }
+    });
+    return h('div', { class: 'card' }, h('b', null, 'Auto-pay (recommended)'),
+      h('div', { class: 'small muted' }, 'Approve once with UPI AutoPay or card. Your plan renews by itself' +
+        (d.sub.state === 'trial' ? ', first charge when your free trial ends on ' + fmtDate(d.sub.ends) : '') + '. Stop any time.'),
+      field('Plan', pick), go);
+  }
+
   /** Owner pays the platform by UPI and tells us; the platform admin confirms it. Also used from the lock screen. */
   async function renewPage(standalone) {
     const call = async (action, body) => {
@@ -498,7 +560,7 @@
         /^91\d{10}$/.test(d.whatsapp || '') ? h('a', { class: 'btn ghost block wa', href: waLink(d.whatsapp, 'Hi, I want to renew the app for ' + (S.gym || CFG.name) + ' (' + CFG.slug + '), ' + plan + ' plan.'), target: '_blank', rel: 'noopener' }, upi ? 'Questions? WhatsApp us' : 'Renew on WhatsApp') : null);
     };
     draw('yearly');
-    const content = [h('div', { class: 'hero' }, h('div', { class: 'hello' }, 'Your app plan'), h('h2', null, state)), box];
+    const content = [h('div', { class: 'hero' }, h('div', { class: 'hello' }, 'Your app plan'), h('h2', null, state)), autopayCard(d, standalone), box];
     if (standalone) {
       $app.className = 'boot';
       $app.replaceChildren(h('div', { class: 'login' }, h('h1', null, 'Renew your app'), ...content, h('button', { class: 'btn ghost block', onclick: boot }, 'Back')));
