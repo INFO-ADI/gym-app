@@ -466,15 +466,7 @@
     if (!r.data || !r.data.ok) throw new Error((r.data && r.data.error) || 'server_error');
     return r.data;
   }
-  function loadCheckout() {
-    if (window.Razorpay) return Promise.resolve();
-    return new Promise((res, rej) => {
-      const s = document.createElement('script');
-      s.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      s.onload = () => res(); s.onerror = () => rej(new Error('network'));
-      document.head.append(s);
-    });
-  }
+
   /** Owner pays the platform by UPI and tells us; the platform admin confirms it. Also used from the lock screen. */
   async function renewPage(standalone) {
     const call = async (action, body) => {
@@ -484,6 +476,7 @@
       return r.data.data;
     };
     const d = await call('info');
+    S.priceMonth = d.price_month; S.priceYear = d.price_year;
     const sub = d.sub, ap = d.autopay;
     const again = () => renewPage(standalone).catch(showErr);
     const autopayOn = ap && ['active', 'authenticated', 'pending'].includes(ap.status);
@@ -577,50 +570,26 @@
     }
   }
 
-  /** One-time payment for a month or a year through Razorpay Checkout. */
-  async function payOnce(btn, plan, done) {
+  /** Razorpay only accepts payments from kanpurgym.com itself (not each gym's subdomain), so the
+      order / subscription is created here and the owner pays on kanpurgym.com/pay, then comes back. */
+  function goToPayPage(params) {
+    const base = location.protocol + '//' + (CFG.domain || location.host) + (location.port && CFG.domain ? ':' + location.port : '');
+    const q = new URLSearchParams(Object.assign({ g: S.gym || CFG.name || '', r: APP_URL + '#/subscription' }, params));
+    location.href = base + '/pay?' + q.toString();
+  }
+  async function payOnce(btn, plan) {
+    btn.disabled = true;
+    try { const r = await rzpCall({ action: 'order', plan }); goToPayPage({ k: r.key, o: r.order_id, a: r.amount, p: plan }); }
+    catch (e) { showErr(e); btn.disabled = false; }
+  }
+  async function startAutopay(btn, plan) {
     btn.disabled = true;
     try {
-      const [r] = await Promise.all([rzpCall({ action: 'order', plan }), loadCheckout()]);
-      const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#22d48a';
-      const rz = new window.Razorpay({
-        key: r.key, order_id: r.order_id, amount: r.amount, currency: 'INR', name: CFG.site || 'KanpurGym',
-        description: (plan === 'yearly' ? 'One year' : 'One month') + ' app plan · ' + (S.gym || CFG.name),
-        prefill: { email: (S.me && S.me.email) || '' }, theme: { color: accent },
-        handler: async resp => {
-          try {
-            const v = await rzpCall({ action: 'order_verify', order_id: resp.razorpay_order_id, payment_id: resp.razorpay_payment_id, signature: resp.razorpay_signature });
-            toast('Payment received. Plan valid till ' + fmtDate(v.paid_until) + '.');
-          } catch (e) { toast('Payment received. Your plan updates within a minute.'); }
-          setTimeout(boot, 400);
-        },
-        modal: { ondismiss: () => { btn.disabled = false; } },
-      });
-      rz.on('payment.failed', () => { toast('That did not go through. Try again or use another method.', true); btn.disabled = false; });
-      rz.open();
+      const r = await rzpCall({ action: 'start', plan });
+      goToPayPage({ k: r.key, s: r.subscription_id, p: plan, a: Math.round((plan === 'yearly' ? S.priceYear : S.priceMonth) * 100) || '', f: r.first_charge || '' });
     } catch (e) { showErr(e); btn.disabled = false; }
   }
 
-  async function startAutopay(btn, plan, done) {
-    btn.disabled = true;
-    try {
-      const [r] = await Promise.all([rzpCall({ action: 'start', plan }), loadCheckout()]);
-      const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#22d48a';
-      const rz = new window.Razorpay({
-        key: r.key, subscription_id: r.subscription_id, name: CFG.site || 'KanpurGym',
-        description: (plan === 'yearly' ? 'Yearly' : 'Monthly') + ' app plan · ' + (S.gym || CFG.name),
-        prefill: { email: (S.me && S.me.email) || '' }, theme: { color: accent },
-        handler: async resp => {
-          try { await rzpCall({ action: 'verify', payment_id: resp.razorpay_payment_id, signature: resp.razorpay_signature }); toast('Auto-pay is on. Thank you!'); }
-          catch (e) { toast('Auto-pay set up. It may take a minute to show.'); }
-          done();
-        },
-        modal: { ondismiss: () => { btn.disabled = false; } },
-      });
-      rz.on('payment.failed', () => { toast('That did not go through. Try again or use another UPI app.', true); btn.disabled = false; });
-      rz.open();
-    } catch (e) { showErr(e); btn.disabled = false; }
-  }
 
 
 

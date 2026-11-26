@@ -174,3 +174,16 @@ p{margin:0}
 .contact-card{background:var(--paper);border:1px solid var(--rule);border-radius:16px;padding:24px;margin:24px 0}
 .contact-card p+p{margin-top:8px}
 .foot .links a{margin-left:16px}
+
+/* payment page */
+.paypage{min-height:100vh;display:flex;align-items:center;justify-content:center}
+.pay-wrap{width:100%;max-width:460px;padding:32px 20px}
+.pay-wrap .mark{justify-content:center;margin-bottom:20px}
+.pay-card{background:var(--paper);border:1px solid var(--rule);border-radius:20px;padding:28px}
+.pay-label{color:var(--plate);font-weight:600;font-size:15px}
+.pay-card h1{font-size:40px;margin-top:6px}
+.pay-gym{color:var(--iron);margin-top:4px}
+.pay-amount{font-size:44px;font-weight:800;font-stretch:68%;margin:18px 0 4px}
+.pay-card .ticks{margin:8px 0 22px}
+.pay-back{display:block;text-align:center;margin-top:14px;color:var(--iron)}
+.pay-foot{text-align:center;color:var(--iron);font-size:14px;margin-top:16px}

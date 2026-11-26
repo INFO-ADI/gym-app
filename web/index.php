@@ -62,6 +62,11 @@ if ($slug === null) {
             $pages = ['/terms' => 'Terms of service', '/privacy' => 'Privacy policy', '/refunds' => 'Cancellation and refunds', '/contact' => 'Contact us', '/shipping' => 'Shipping and delivery'];
             echo render('policy-' . substr($path, 1) . '.html', ['V' => e(VERSION), 'SITE' => e(SITE_NAME), 'DOMAIN' => e($base), 'TITLE' => e($pages[$path])]);
             exit;
+        case '/pay':
+            send_headers('text/html; charset=utf-8');
+            header('X-Robots-Tag: noindex');
+            echo render('pay.html', ['V' => e(VERSION), 'SITE' => e(SITE_NAME)]);
+            exit;
         case '/robots.txt':
             header('Content-Type: text/plain');
             echo "User-agent: *\nDisallow: /admin/\nDisallow: /g/\n";

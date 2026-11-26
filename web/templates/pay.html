@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Secure payment · {{SITE}}</title>
+<link rel="icon" href="/assets/icons/icon-192.png">
+<link rel="stylesheet" href="/assets/landing.css?v={{V}}">
+</head>
+<body class="paypage">
+<main class="pay-wrap">
+  <a class="mark" href="/" aria-label="{{SITE}}"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="9" width="5" height="14" rx="1.5"/><rect x="24" y="9" width="5" height="14" rx="1.5"/><rect x="8" y="14.5" width="16" height="3"/><rect x="0.5" y="12" width="2.5" height="8" rx="1"/><rect x="29" y="12" width="2.5" height="8" rx="1"/></svg><span>{{SITE}}</span></a>
+  <section class="pay-card" id="card">
+    <p class="pay-label" id="kind">Payment</p>
+    <h1 id="title">Loading…</h1>
+    <p class="pay-gym" id="gym"></p>
+    <div class="pay-amount" id="amount"></div>
+    <ul class="ticks" id="points"></ul>
+    <button class="btn block" id="go" type="button" disabled>Pay securely</button>
+    <p class="msg" id="msg" role="status" aria-live="polite"></p>
+    <a class="pay-back" id="back" href="/">Back to the gym app</a>
+  </section>
+  <p class="pay-foot">Payments are processed by Razorpay. We never see your card or UPI PIN.</p>
+</main>
+<script src="/site-config.js?v={{V}}"></script>
+<script src="/assets/pay.js?v={{V}}"></script>
+</body>
+</html>

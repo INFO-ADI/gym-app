@@ -163,13 +163,40 @@ async function app(req: Request): Promise<Response> {
   return json(req, { ok: false, error: "bad_action" });
 }
 
+// ---------------------------------------------------------------- payment page on kanpurgym.com → us (no login needed: Razorpay's signature proves the payment)
+async function payVerify(req: Request): Promise<Response> {
+  const body = await req.json().catch(() => ({}));
+  const pid = String(body.payment_id ?? ""), sig = String(body.signature ?? "");
+  if (!/^pay_[A-Za-z0-9]+$/.test(pid) || !KEY_SECRET) return json(req, { ok: false, error: "verify_failed" });
+  if (body.order_id) {
+    const oid = String(body.order_id);
+    if (!sameText(await hmacHex(KEY_SECRET, `${oid}|${pid}`), sig)) return json(req, { ok: false, error: "verify_failed" });
+    const order = await rzp("/orders/" + encodeURIComponent(oid));
+    if (order?.notes?.kind !== "one_time") return json(req, { ok: false, error: "verify_failed" });
+    const pay = await rzp("/payments/" + encodeURIComponent(pid));
+    if (pay.status !== "captured" || pay.order_id !== order.id) return json(req, { ok: false, error: "payment_pending" });
+    const r = await svc("paid_once", { gym_id: Number(order.notes.gym_id), payment_id: pay.id, amount: Math.round(pay.amount / 100), plan: order.notes.plan });
+    return json(req, { ok: true, kind: "once", paid_until: r?.paid_until });
+  }
+  if (body.subscription_id) {
+    const sid = String(body.subscription_id);
+    if (!sameText(await hmacHex(KEY_SECRET, `${pid}|${sid}`), sig)) return json(req, { ok: false, error: "verify_failed" });
+    const sub = await rzp("/subscriptions/" + encodeURIComponent(sid));
+    await svc("status", { sub_id: sid, status: sub.status });
+    return json(req, { ok: true, kind: "autopay", status: sub.status });
+  }
+  return json(req, { ok: false, error: "verify_failed" });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors(req) });
   if (req.method !== "POST") return new Response("Not found", { status: 404 });
   const isHook = new URL(req.url).searchParams.has("webhook");
   try {
     await loadConfig();
-    return isHook ? await webhook(req) : await app(req);
+    if (isHook) return await webhook(req);
+    if (new URL(req.url).searchParams.has("pay")) return await payVerify(req);
+    return await app(req);
   } catch (e) {
     console.error(String(e));
     if (isHook) return new Response("error", { status: 500 }); // Razorpay will retry
