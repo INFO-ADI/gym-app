@@ -57,8 +57,9 @@ if ($slug === null) {
         case '/privacy':
         case '/refunds':
         case '/contact':
+        case '/shipping':
             send_headers('text/html; charset=utf-8');
-            $pages = ['/terms' => 'Terms of service', '/privacy' => 'Privacy policy', '/refunds' => 'Cancellation and refunds', '/contact' => 'Contact us'];
+            $pages = ['/terms' => 'Terms of service', '/privacy' => 'Privacy policy', '/refunds' => 'Cancellation and refunds', '/contact' => 'Contact us', '/shipping' => 'Shipping and delivery'];
             echo render('policy-' . substr($path, 1) . '.html', ['V' => e(VERSION), 'SITE' => e(SITE_NAME), 'DOMAIN' => e($base), 'TITLE' => e($pages[$path])]);
             exit;
         case '/robots.txt':
