@@ -34,4 +34,7 @@ jobs:
           TARGET=/public_html
           echo "Uploading to $TARGET"
           lftp -u "$FTP_USERNAME","$FTP_PASSWORD" -e "$SETTINGS; mirror --reverse --parallel=3 --verbose=1 web/ $TARGET; bye" "$FTP_SERVER"
+          # report files on the server that are not part of the website (nothing is deleted)
+          EXTRA=$(lftp -u "$FTP_USERNAME","$FTP_PASSWORD" -e "$SETTINGS; mirror --reverse --delete --dry-run --exclude-glob .well-known/ web/ $TARGET; bye" "$FTP_SERVER" 2>&1 | grep -E '^(rm|rmdir) ' | sed 's#ftp://[^/]*##' | tr '\n' ';')
+          echo "::notice title=Extra files on server::${EXTRA:-none}"
           echo "::notice title=Website folder now has::$(L "cls -1a $TARGET/" | tr '\n' ' ')"
