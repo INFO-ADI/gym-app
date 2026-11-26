@@ -58,7 +58,7 @@
     slug_taken: 'That web name is already used by another gym.', slug_reserved: 'That web name is reserved. Pick another.', bad_color: 'Pick valid colours.',
     bad_phone: 'Enter a 10-digit mobile number.', bad_plan: 'Pick monthly or yearly.', bad_amount: 'Check the amount.', bad_days: 'Days must be 1–90.',
     confirm_slug: 'Type the gym web name exactly to confirm.', not_found: 'Not found. It may have been deleted.', server_error: 'Something went wrong. Try again.',
-    upload_failed: 'Logo upload failed. Use a PNG or JPG under 5 MB.', bad_upi: 'UPI ID looks wrong. It should look like name@okaxis.', not_an_image: 'That file is not an image.',
+    upload_failed: 'Logo upload failed. Use a PNG or JPG under 5 MB.', bad_upi: 'UPI ID looks wrong. It should look like name@okaxis.', bad_rzp_key: 'Key ID should look like rzp_test_… or rzp_live_…', bad_rzp_plan: 'Plan IDs look like plan_…', bad_rzp_secret: 'That secret looks too short.', autopay_payment: 'Auto-pay payments are refunded from the Razorpay dashboard, not deleted here.', not_an_image: 'That file is not an image.',
   };
   const errText = e => ERR[e] || ('Error: ' + e);
   const showErr = e => toast(errText(e && e.message ? e.message : e), true);
@@ -515,9 +515,16 @@
           g.owner_phone ? h('a', { class: 'btn sm wa', href: waLink(g.owner_phone, 'Namaste ji, ' + (CFG.site || '') + ' se bol raha hoon. '), target: '_blank', rel: 'noopener' }, 'WhatsApp') : null,
           (() => { const b = h('button', { class: 'btn sm ghost' }, g.claimed ? 'Code for another owner' : 'New setup code'); b.addEventListener('click', newCode); return b; })())),
       h('div', { class: 'section' }, 'Payments'),
-      d.payments.length ? h('div', { class: 'list' }, d.payments.map(p => h('div', { class: 'item' }, h('div', { class: 'grow' },
-        h('div', { class: 't' }, fmtMoney(p.amount) + ' · ' + (p.plan === 'yearly' ? 'Yearly' : 'Monthly') + ' · ' + p.mode.toUpperCase()),
-        h('div', { class: 's' }, 'Paid ' + fmtDate(p.paid_on) + ' · covers ' + fmtDate(p.period_from) + ' – ' + fmtDate(p.period_to) + (p.note ? ' · ' + p.note : '')))))) : h('div', { class: 'card muted small' }, 'No payments yet.'),
+      d.payments.length ? h('div', { class: 'list' }, d.payments.map(p => {
+        const undo = /^Razorpay auto-pay/.test(p.note || '') ? null : h('button', { class: 'x', title: 'Undo this payment', 'aria-label': 'Undo this payment' }, '×');
+        if (undo) undo.addEventListener('click', busy(undo, async () => {
+          if (!confirm('Undo the ' + fmtMoney(p.amount) + ' payment of ' + fmtDate(p.paid_on) + '? The paid-till date goes back to what the other payments cover.')) return;
+          await api('payment_delete', { id: p.id }); toast('Payment removed'); reload();
+        }));
+        return h('div', { class: 'item pay-row' }, h('div', { class: 'grow' },
+          h('div', { class: 't' }, fmtMoney(p.amount) + ' · ' + (p.plan === 'yearly' ? 'Yearly' : 'Monthly') + ' · ' + p.mode.toUpperCase()),
+          h('div', { class: 's' }, 'Paid ' + fmtDate(p.paid_on) + ' · covers ' + fmtDate(p.period_from) + ' – ' + fmtDate(p.period_to) + (p.note ? ' · ' + p.note : ''))), undo);
+      })) : h('div', { class: 'card muted small' }, 'No payments yet.'),
       g.notes ? h('div', { class: 'card small' }, h('b', null, 'Notes: '), g.notes) : null,
       h('div', { class: 'section' }, 'Manage'),
       h('div', { class: 'list' },
@@ -534,7 +541,7 @@
     const first = g.owner_name ? ' ' + g.owner_name.split(' ')[0] : '';
     const st = S.settings || {};
     const price = fmtMoney(st.price_month || 800) + '/month ya ' + fmtMoney(st.price_year || 4999) + '/year';
-    const how = 'App me More → App plan kholiye, wahan UPI se 1 minute me renew ho jayega.';
+    const how = 'App me More → App plan kholiye, wahan online pay ya auto-pay se 1 minute me renew ho jayega.';
     const sign = '\n- ' + (CFG.site || 'Team');
     const ends = fmtDate(g.sub.ends);
     switch (g.reason) {
@@ -589,20 +596,31 @@
       const notes = h('input', { value: l.notes || '', placeholder: 'Notes', maxlength: 500 });
       const save = h('button', { class: 'btn sm ghost' }, 'Save');
       save.addEventListener('click', busy(save, async () => { await api('lead_update', { id: l.id, status: sel.value, notes: notes.value }); toast('Saved'); }));
+      const del = h('button', { class: 'btn sm ghost' }, 'Delete');
+      del.addEventListener('click', busy(del, async () => { if (!confirm('Delete the request from ' + l.name + '?')) return; await api('lead_delete', { id: l.id }); toast('Deleted'); routes.leads(tab); }));
       const msg = 'Namaste ' + l.name.split(' ')[0] + ' ji! ' + (CFG.site || '') + ' se bol raha hoon. Aapne gym app ke demo ke liye request ki thi. Kab 10 minute ka demo dikha doon?';
       return h('div', { class: 'card' + (l.status === 'new' ? ' due' : '') },
         h('div', { class: 'row between' }, h('div', null, h('b', null, l.name), h('div', { class: 'muted small' }, (l.gym_name || 'Gym not given') + (l.city ? ' · ' + l.city : '') + ' · ' + fmtDate(l.created_at))),
           h('a', { class: 'btn sm wa', href: waLink(l.phone, msg), target: '_blank', rel: 'noopener' }, 'WhatsApp')),
         h('div', { class: 'small' }, '+91 ' + shortPhone(l.phone)),
         l.message ? h('div', { class: 'small muted' }, '“' + l.message + '”') : null,
-        h('div', { class: 'row' }, sel, h('div', { class: 'grow' }, notes), save),
-        h('div', { class: 'btns' }, h('button', { class: 'btn sm', onclick: () => { S.prefill = { name: l.gym_name || '', owner_name: l.name, phone: l.phone, city: l.city || 'Kanpur', notes: 'From website lead #' + l.id }; location.hash = '#/new'; } }, 'Create their gym app')));
+        h('div', { class: 'lead-edit' }, sel, notes, save),
+        h('div', { class: 'btns' }, del, h('button', { class: 'btn sm', onclick: () => { S.prefill = { name: l.gym_name || '', owner_name: l.name, phone: l.phone, city: l.city || 'Kanpur', notes: 'From website lead #' + l.id }; location.hash = '#/new'; } }, 'Create their gym app')));
     };
+    const q = h('input', { class: 'search', type: 'search', placeholder: 'Search name, gym, city or number' });
+    const box = h('div');
+    const drawLeads = () => {
+      const t = q.value.trim().toLowerCase();
+      const list = d.leads.filter(l => !t || [l.name, l.gym_name, l.city, l.phone, l.notes].join(' ').toLowerCase().includes(t));
+      box.replaceChildren(...(list.length ? list.map(card) : [h('div', { class: 'empty' }, d.leads.length ? 'No match.' : 'No leads here yet.')]));
+    };
+    q.addEventListener('input', drawLeads);
     frame('Leads', [
-      h('p', { class: 'muted small' }, 'Demo requests from the landing page.'),
+      h('p', { class: 'muted small' }, 'Demo requests from the landing page.'), q,
       h('div', { class: 'seg' }, [['open', 'Open'], ['won', 'Signed up'], ['lost', 'Lost'], ['all', 'All']].map(([k, l]) => h('button', { class: k === tab ? 'on' : '', onclick: () => { location.hash = '#/leads/' + k; } }, l))),
-      d.leads.length ? d.leads.map(card) : h('div', { class: 'empty' }, 'No leads here yet.'),
+      box,
     ]);
+    drawLeads();
   };
 
   /* ---------------- money ---------------- */
@@ -621,26 +639,57 @@
   };
 
   /* ---------------- settings ---------------- */
+  function panel(title, desc, ...body) {
+    return h('section', { class: 'panel' }, h('div', { class: 'panel-h' }, h('h2', null, title), desc ? h('p', null, desc) : null), h('div', { class: 'panel-b' }, body));
+  }
   routes.settings = async () => {
     loading('Settings');
     const st = S.settings = await api('settings', {});
-    const form = h('form', { class: 'card' },
-      field('Your WhatsApp number (shown on the website and lock screens)', h('input', { name: 'whatsapp', inputmode: 'tel', value: st.whatsapp ? shortPhone(st.whatsapp) : '' })),
-      h('div', { class: 'row' }, h('label', { class: 'f grow' }, 'Price per month (₹)', h('input', { name: 'price_month', inputmode: 'numeric', value: st.price_month })),
-        h('label', { class: 'f grow' }, 'Price per year (₹)', h('input', { name: 'price_year', inputmode: 'numeric', value: st.price_year }))),
-      h('div', { class: 'row' }, h('label', { class: 'f grow' }, 'Free trial (days)', h('input', { name: 'trial_days', inputmode: 'numeric', value: st.trial_days })),
-        h('label', { class: 'f grow' }, 'Grace after expiry (days)', h('input', { name: 'grace_days', inputmode: 'numeric', value: st.grace_days }))),
-      field('Your UPI ID (gym owners pay renewals to this)', h('input', { name: 'upi_id', value: st.upi_id || '', placeholder: 'yourname@okaxis', autocapitalize: 'off' })),
-      field('Name shown on UPI', h('input', { name: 'upi_name', value: st.upi_name || '', maxlength: 60 })),
-      field('Start reminding gyms this many days before the plan ends', h('input', { name: 'remind_days', inputmode: 'numeric', value: st.remind_days || 2 })),
-      field('Notice to all gym owners (shown on their dashboard, leave empty for none)', h('textarea', { name: 'notice', maxlength: 300 }, st.notice || '')),
-      field('Demo gym web name (used for "See demo" on the website)', h('input', { name: 'demo_slug', value: st.demo_slug || '', autocapitalize: 'off' })),
-      field('Razorpay auto-pay for gym owners', h('select', { name: 'autopay' }, h('option', { value: 'off', selected: st.autopay !== 'on' }, 'Off (UPI QR only)'), h('option', { value: 'on', selected: st.autopay === 'on' }, 'On'))),
-      field('Gym app addresses', h('select', { name: 'url_style' }, h('option', { value: 'subdomain', selected: st.url_style !== 'path' }, 'gymname.' + (st.base_domain || 'domain')),
-        h('option', { value: 'path', selected: st.url_style === 'path' }, (st.base_domain || 'domain') + '/g/gymname'))),
-      h('button', { class: 'btn block', type: 'submit' }, 'Save settings'));
-    form.addEventListener('submit', busy(form.querySelector('button'), async () => { S.settings = await api('settings', formData(form)); toast('Settings saved'); }));
-    const pw = h('input', { type: 'password', minlength: 10, autocomplete: 'new-password', placeholder: 'New password (10+ characters)' });
+    const num = (name, label, v) => h('label', { class: 'f' }, label, h('input', { name, inputmode: 'numeric', value: v }));
+    const saveBtn = h('button', { class: 'btn', type: 'submit' }, 'Save changes');
+    const form = h('form', null,
+      panel('Business', 'Shown on your website, policy pages and the gym apps’ renewal screens.',
+        field('Your WhatsApp number', h('input', { name: 'whatsapp', inputmode: 'tel', value: st.whatsapp ? shortPhone(st.whatsapp) : '', placeholder: '98765 43210' })),
+        field('Notice to all gym owners (shown on their dashboard; leave empty for none)', h('textarea', { name: 'notice', maxlength: 300, placeholder: 'e.g. New: diet plans are live!' }, st.notice || ''))),
+      panel('Pricing and trial', 'Changes apply to new payments and new gyms.',
+        h('div', { class: 'grid2' }, num('price_month', 'Price per month (₹)', st.price_month), num('price_year', 'Price per year (₹)', st.price_year),
+          num('trial_days', 'Free trial (days)', st.trial_days), num('grace_days', 'Grace days after expiry', st.grace_days)),
+        num('remind_days', 'Remind gyms this many days before their plan ends', st.remind_days || 2)),
+      panel('Gym apps', 'How gym app links look.',
+        h('div', { class: 'grid2' },
+          field('App address style', h('select', { name: 'url_style' }, h('option', { value: 'subdomain', selected: st.url_style !== 'path' }, 'gymname.' + (st.base_domain || 'domain')),
+            h('option', { value: 'path', selected: st.url_style === 'path' }, (st.base_domain || 'domain') + '/g/gymname'))),
+          field('Demo gym web name', h('input', { name: 'demo_slug', value: st.demo_slug || '', autocapitalize: 'off', placeholder: 'demo' })))),
+      h('div', { class: 'savebar' }, h('span', { class: 'small muted' }, 'Saved settings apply straight away.'), saveBtn));
+    form.addEventListener('submit', busy(saveBtn, async () => { S.settings = await api('settings', formData(form)); toast('Settings saved'); }));
+
+    const live = /^rzp_live_/.test(st.rzp_key_id || '');
+    const hookUrl = CFG.url + '/functions/v1/razorpay?webhook=1';
+    const secretInput = (name, isSet) => h('input', { name, type: 'password', autocomplete: 'off', placeholder: isSet ? 'Saved ✓ (type only to replace)' : 'Paste here' });
+    const rzBtn = h('button', { class: 'btn', type: 'submit' }, 'Save Razorpay settings');
+    const rz = h('form', { class: 'panel' },
+      h('div', { class: 'panel-h' }, h('div', { class: 'row between' }, h('h2', null, 'Razorpay'),
+        st.rzp_key_id ? h('span', { class: 'badge ' + (live ? 'active' : 'expiring') }, live ? 'Live mode' : 'Test mode') : h('span', { class: 'badge' }, 'Not connected')),
+        h('p', null, 'Gym owners pay their plan through Razorpay: auto-pay or a one-time payment. Use test keys and test plans together, or live with live.')),
+      h('div', { class: 'panel-b' },
+        field('Online payments for gym owners', h('select', { name: 'autopay' }, h('option', { value: 'off', selected: st.autopay !== 'on' }, 'Off'), h('option', { value: 'on', selected: st.autopay === 'on' }, 'On'))),
+        h('div', { class: 'grid2' },
+          field('Key ID', h('input', { name: 'rzp_key_id', value: st.rzp_key_id || '', placeholder: 'rzp_test_…', autocapitalize: 'off', autocomplete: 'off' })),
+          field('Key secret', secretInput('rzp_key_secret', st.rzp_secret_set)),
+          field('Monthly plan ID', h('input', { name: 'rzp_plan_monthly', value: st.rzp_plan_monthly || '', placeholder: 'plan_…', autocapitalize: 'off' })),
+          field('Yearly plan ID', h('input', { name: 'rzp_plan_yearly', value: st.rzp_plan_yearly || '', placeholder: 'plan_…', autocapitalize: 'off' }))),
+        field('Webhook secret', secretInput('rzp_webhook_secret', st.rzp_webhook_set)),
+        h('div', { class: 'hookbox' }, h('div', { class: 'small muted' }, 'Webhook URL for Razorpay (Settings → Webhooks). Tick all "subscription" events and "order.paid".'),
+          h('div', { class: 'row' }, h('code', { class: 'grow small' }, hookUrl), h('button', { class: 'btn sm ghost', type: 'button', onclick: () => copy(hookUrl, 'Webhook URL') }, 'Copy'))),
+        rzBtn));
+    rz.addEventListener('submit', busy(rzBtn, async () => {
+      const b = formData(rz);
+      if (!b.rzp_key_secret) delete b.rzp_key_secret;
+      if (!b.rzp_webhook_secret) delete b.rzp_webhook_secret;
+      S.settings = await api('settings', b); toast('Razorpay settings saved'); routes.settings();
+    }));
+
+    const pw = h('input', { type: 'password', minlength: 10, autocomplete: 'new-password', placeholder: 'New password (10+ characters)', 'aria-label': 'New password' });
     const pwBtn = h('button', { class: 'btn ghost' }, 'Change password');
     pwBtn.addEventListener('click', busy(pwBtn, async () => {
       if (pw.value.length < 10) throw new Error('Password must be at least 10 characters');
@@ -652,13 +701,13 @@
       if (!confirm('Log out of the admin panel on every phone and computer, including this one?')) return;
       await sb.auth.signOut({ scope: 'global' }); location.hash = '#/'; boot();
     }));
-    frame('Settings', [form,
-      h('div', { class: 'section' }, 'Security'),
-      h('div', { class: 'card' }, h('div', { class: 'small muted' }, 'Logged in as ' + S.me.email + '. The panel logs out by itself after 12 hours without use.'),
-        h('div', { class: 'row' }, h('div', { class: 'grow' }, pw), pwBtn), h('div', { class: 'btns' }, everywhere, h('a', { class: 'btn ghost', href: '#/audit' }, 'Activity log'))),
-      h('div', { class: 'section' }, 'Export'),
-      h('div', { class: 'btns' }, h('button', { class: 'btn ghost', onclick: () => exportCsv('gyms').catch(showErr) }, 'Gyms (CSV)'), h('button', { class: 'btn ghost', onclick: () => exportCsv('payments').catch(showErr) }, 'Payments (CSV)')),
-      h('button', { class: 'btn ghost block', onclick: logout }, 'Log out')]);
+    frame('Settings', [form, rz,
+      panel('Login and security', 'Logged in as ' + S.me.email + '. The panel logs out by itself after 12 hours without use.',
+        h('div', { class: 'pwrow' }, pw, pwBtn),
+        h('div', { class: 'btnrow' }, everywhere, h('a', { class: 'btn ghost', href: '#/audit' }, 'Activity log'), h('button', { class: 'btn ghost', onclick: logout }, 'Log out'))),
+      panel('Export', 'Download for your records or your accountant.',
+        h('div', { class: 'btnrow' }, h('button', { class: 'btn ghost', onclick: () => exportCsv('gyms').catch(showErr) }, 'Gyms (CSV)'), h('button', { class: 'btn ghost', onclick: () => exportCsv('payments').catch(showErr) }, 'Payments (CSV)'))),
+    ]);
   };
 
   /* ---------------- activity log + export ---------------- */

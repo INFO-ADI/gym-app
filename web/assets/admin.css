@@ -1,16 +1,38 @@
-/* super admin panel additions (on top of app.css) */
+/* Super admin panel: the same calm chalk-and-green look as kanpurgym.com */
+:root,:root[data-theme]{--bg:#f4f5f2;--bg2:#eceee9;--card:#ffffff;--card2:#ffffff;--line:#dfe2dc;--text:#16181b;--muted:#5b636d;
+  --accent:#0f6b43;--accent-ink:#ffffff;--a1:#0f6b43;--a2:#0f6b43;--a3:#0a5534;--good:#0e8a52;--warn:#b86e00;--bad:#c0283c;--info:#2563eb;
+  --tint:#e8f1eb}
+body{background:var(--bg)}
+.top{background:rgba(244,245,242,.92)}
+.nav{background:rgba(255,255,255,.96)}
+.card,.list,.tile{box-shadow:0 1px 2px rgba(20,24,40,.05)}
+.badge{background:#eceee9;color:var(--text)}
+.badge.active{background:#e3f1e8;color:#0e7a48}.badge.expiring{background:#fbf0dc;color:#9a5c00}.badge.expired{background:#fbe5e8;color:#a3202f}
+.badge.waiting{background:#e8f1eb;color:#0f6b43}.badge.archived{background:#eceee9;color:#5b636d}
+.tile.good{color:#0e7a48}.tile.warn{color:#9a5c00}.tile.hot{color:#0f6b43}
+#toast{background:#16181b;color:#fff}#toast.err{background:#a3202f}
+.login h1{font-stretch:75%}
+.err-text{color:#a3202f}
+.boot{background:var(--bg)}
+
+/* admin-only parts */
 .gymrow{display:flex;gap:12px;align-items:center;text-decoration:none;color:inherit}
-.sw{display:inline-block;width:34px;height:34px;border-radius:10px;flex:none;vertical-align:middle}
+.sw{display:inline-block;width:36px;height:36px;border-radius:10px;flex:none;vertical-align:middle}
 .chip .sw{width:16px;height:16px;border-radius:5px;box-shadow:none!important}
-.brandprev{border-radius:16px;padding:22px;margin:10px 0;display:flex;justify-content:center;border:1px solid var(--line)}
-.pv-btn{display:inline-block;padding:12px 40px;border-radius:14px;font-weight:800;color:#1a0d00}
+.brandprev{border-radius:14px;padding:22px;margin:10px 0;display:flex;justify-content:center;border:1px solid var(--line)}
+.pv-btn{display:inline-block;padding:12px 40px;border-radius:12px;font-weight:700;color:#111}
 .colorrow{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
 .cpick{display:flex;flex-direction:column;align-items:center;font-size:11px;color:var(--muted);gap:4px}
 .cpick input{width:46px;height:36px;border:none;background:none;padding:0}
 .codebox{text-align:center}
-.bigcode{font:900 26px ui-monospace,Consolas,monospace;letter-spacing:.12em;margin:8px 0;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.bigcode{font:800 26px ui-monospace,Consolas,monospace;letter-spacing:.12em;margin:8px 0;color:var(--accent)}
 .codebox code{word-break:break-all}
-.glogo{width:52px;height:52px;border-radius:14px;flex:none}
+.glogo{width:52px;height:52px;border-radius:14px;flex:none;background:#16181b}
 .gymhero h2{margin:0}
 .item.danger .t{color:var(--bad)}
 .login form.card{width:100%}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px}
+@media (min-width:700px){.kpis{grid-template-columns:repeat(4,1fr)}}
+.pay-row{display:flex;align-items:center;gap:10px}
+.pay-row .x{background:none;border:0;color:var(--muted);font-size:20px;cursor:pointer;padding:4px 8px;border-radius:8px}
+.pay-row .x:hover{color:var(--bad);background:#fbe5e8}

@@ -145,7 +145,7 @@
     bad_date: 'Please enter a valid date.', bad_amount: 'Please enter a valid amount.', server_error: 'Something went wrong on the server. Try again.',
     pin_mismatch: 'The two new PINs do not match.',
     not_installed: 'This gym app is not set up yet.', network: 'No internet connection.',
-    gym_not_found: 'This gym was not found. Check the link.', subscription_expired: 'This gym app is paused. Please contact the gym.', autopay_not_ready: 'Auto-pay is not available yet. Use UPI below.', autopay_already_on: 'Auto-pay is already on.', razorpay_error: 'Razorpay could not start auto-pay. Try again in a minute.', verify_failed: 'Could not confirm auto-pay. Check again in a minute.',
+    gym_not_found: 'This gym was not found. Check the link.', subscription_expired: 'This gym app is paused. Please contact the gym.', autopay_not_ready: 'Auto-pay is not available yet. Use UPI below.', autopay_already_on: 'Auto-pay is already on.', razorpay_error: 'Razorpay could not start auto-pay. Try again in a minute.', verify_failed: 'Could not confirm the payment. Check again in a minute.', payment_pending: 'Payment is still processing. Your plan updates within a few minutes.',
   };
   const errText = e => ERR[e] || (String(e || '').startsWith('missing_column_') ? 'CSV is missing the column: ' + e.slice(15) : 'Error: ' + e);
 
@@ -204,6 +204,11 @@
   }
 
   function field(label, input) { return h('label', { class: 'f' }, label, input); }
+  /** A titled settings panel. */
+  function panel(title, desc, ...body) {
+    const kind = typeof body[body.length - 1] === 'string' ? body.pop() : '';
+    return h('section', { class: 'panel' + (kind ? ' ' + kind : '') }, h('div', { class: 'panel-h' }, h('h2', null, title), desc ? h('p', null, desc) : null), h('div', { class: 'panel-b' }, body));
+  }
   function formData(form) {
     const o = {};
     for (const el of form.elements) {
@@ -470,52 +475,6 @@
       document.head.append(s);
     });
   }
-  function autopayCard(d, standalone) {
-    if (!d.autopay_on) return null;
-    const ap = d.autopay;
-    const again = () => renewPage(standalone).catch(showErr);
-    if (ap && ['active', 'authenticated', 'pending'].includes(ap.status)) {
-      const stop = h('button', { class: 'btn sm ghost' }, 'Stop auto-pay');
-      stop.addEventListener('click', async () => {
-        if (!(await confirmBox('Stop auto-pay?', 'You will then need to renew by hand before your plan ends.', 'Stop auto-pay', true))) return;
-        stop.disabled = true;
-        try { await rzpCall({ action: 'cancel' }); toast('Auto-pay stopped'); again(); } catch (e) { showErr(e); stop.disabled = false; }
-      });
-      return h('div', { class: 'card subnote' }, h('div', { class: 'grow' },
-        h('b', null, ap.status === 'pending' ? 'Auto-pay: last payment failed, retrying' : '✓ Auto-pay is on'),
-        h('div', { class: 'small' }, (ap.plan === 'yearly' ? 'Yearly ' + fmtMoney(d.price_year) : 'Monthly ' + fmtMoney(d.price_month)) +
-          ' is charged automatically when your plan ends. Nothing to do.')), stop);
-    }
-    let plan = 'yearly';
-    const pick = h('select', null, h('option', { value: 'yearly' }, 'Yearly · ' + fmtMoney(d.price_year)), h('option', { value: 'monthly' }, 'Monthly · ' + fmtMoney(d.price_month)));
-    pick.addEventListener('change', () => { plan = pick.value; });
-    const go = h('button', { class: 'btn block' }, 'Turn on auto-pay');
-    go.addEventListener('click', async () => {
-      go.disabled = true;
-      try {
-        const [r] = await Promise.all([rzpCall({ action: 'start', plan }), loadCheckout()]);
-        const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#22d48a';
-        const rz = new window.Razorpay({
-          key: r.key, subscription_id: r.subscription_id, name: CFG.site || 'KanpurGym',
-          description: (plan === 'yearly' ? 'Yearly' : 'Monthly') + ' app plan · ' + (S.gym || CFG.name),
-          prefill: { email: (S.me && S.me.email) || '' }, theme: { color: accent },
-          handler: async resp => {
-            try { await rzpCall({ action: 'verify', payment_id: resp.razorpay_payment_id, signature: resp.razorpay_signature }); toast('Auto-pay is on. Thank you!'); }
-            catch (e) { toast('Auto-pay set up. It may take a minute to show.'); }
-            again();
-          },
-          modal: { ondismiss: () => { go.disabled = false; } },
-        });
-        rz.on('payment.failed', () => { toast('Payment did not go through. Try again or use another UPI app.', true); go.disabled = false; });
-        rz.open();
-      } catch (e) { showErr(e); go.disabled = false; }
-    });
-    return h('div', { class: 'card' }, h('b', null, 'Auto-pay (recommended)'),
-      h('div', { class: 'small muted' }, 'Approve once with UPI AutoPay or card. Your plan renews by itself' +
-        (d.sub.state === 'trial' ? ', first charge when your free trial ends on ' + fmtDate(d.sub.ends) : '') + '. Stop any time.'),
-      field('Plan', pick), go);
-  }
-
   /** Owner pays the platform by UPI and tells us; the platform admin confirms it. Also used from the lock screen. */
   async function renewPage(standalone) {
     const call = async (action, body) => {
@@ -525,53 +484,158 @@
       return r.data.data;
     };
     const d = await call('info');
-    const s = d.sub;
-    const state = s.state === 'trial' ? 'Free trial till ' + fmtDate(s.ends) : s.state === 'active' ? 'Paid till ' + fmtDate(s.ends)
-      : s.state === 'grace' ? 'Ended on ' + fmtDate(s.ends) : s.state === 'suspended' ? 'Paused' : 'Ended on ' + fmtDate(s.ends);
-    const box = h('div');
-    const draw = (plan) => {
-      if (d.pending) {
-        box.replaceChildren(h('div', { class: 'card subnote' }, h('div', { class: 'grow' }, h('b', null, 'Payment sent for checking'),
-          h('div', { class: 'small' }, (d.pending.plan === 'yearly' ? 'Yearly' : 'Monthly') + ' · ' + fmtMoney(d.pending.amount) + ' · sent ' + fmtDate(d.pending.at) + '. Your app will be switched on as soon as it is confirmed, usually within a few hours.'))));
-        return;
-      }
-      const amount = plan === 'yearly' ? d.price_year : d.price_month;
-      const save = d.price_month * 12 - d.price_year;
-      const pick = (p, title, price, note) => h('button', { class: 'card plan-pick' + (p === plan ? ' on' : ''), onclick: () => draw(p) },
-        h('div', { class: 'row between' }, h('b', null, title), h('b', null, fmtMoney(price))), note ? h('div', { class: 'small muted' }, note) : null);
-      const utr = h('input', { placeholder: 'UPI reference / UTR number (optional)', maxlength: 40, inputmode: 'numeric' });
-      const sent = h('button', { class: 'btn block' }, 'I’ve paid ' + fmtMoney(amount));
-      sent.addEventListener('click', async () => {
-        sent.disabled = true;
-        try { await call('request', { plan, utr: utr.value }); toast('Thanks! We’ll confirm your payment soon.'); return renewPage(standalone); }
-        catch (e) { showErr(e); sent.disabled = false; }
+    const sub = d.sub, ap = d.autopay;
+    const again = () => renewPage(standalone).catch(showErr);
+    const autopayOn = ap && ['active', 'authenticated', 'pending'].includes(ap.status);
+    const save = d.price_month * 12 - d.price_year;
+    const st = { plan: (ap && ap.plan) || 'yearly', method: 'auto' };
+
+    // 1. where you stand
+    const left = Math.max(0, sub.days_left);
+    const total = sub.state === 'trial' ? 30 : (sub.plan === 'yearly' ? 365 : 31);
+    const pill = { trial: ['Free trial', 'waiting'], active: ['Active', 'active'], grace: ['Ended, grace days', 'expiring'], expired: ['Ended', 'expired'], suspended: ['Paused', 'archived'] }[sub.state] || [sub.state, ''];
+    const status = h('section', { class: 'panel plan-status' }, h('div', { class: 'panel-b' },
+      h('div', { class: 'row between' }, h('span', { class: 'muted small' }, 'Current plan'), h('span', { class: 'badge ' + pill[1] }, pill[0])),
+      h('div', { class: 'plan-big' }, sub.state === 'trial' ? 'Free trial' : sub.plan === 'yearly' ? 'Yearly' : sub.plan === 'monthly' ? 'Monthly' : 'No plan'),
+      h('div', { class: 'small' }, ['trial', 'active'].includes(sub.state) ? (left === 0 ? 'Ends today' : left + (left === 1 ? ' day' : ' days') + ' left · ends ' + fmtDate(sub.ends)) : 'Ended ' + fmtDate(sub.ends)),
+      ['trial', 'active'].includes(sub.state) ? h('div', { class: 'track' }, (() => { const i = h('i'); i.style.width = Math.min(100, Math.round(100 * left / total)) + '%'; return i; })()) : null,
+      autopayOn ? h('div', { class: 'ap-on' }, h('b', null, ap.status === 'pending' ? 'Auto-pay: last payment failed, Razorpay is retrying' : 'Auto-pay is on'),
+        h('span', null, (ap.plan === 'yearly' ? fmtMoney(d.price_year) + ' a year' : fmtMoney(d.price_month) + ' a month') + ', charged automatically when the plan ends.')) : null));
+
+    if (d.pending) {
+      return show([status, h('section', { class: 'panel' }, h('div', { class: 'panel-b' }, h('h2', null, 'Payment being checked'),
+        h('p', { class: 'muted' }, (d.pending.plan === 'yearly' ? 'Yearly' : 'Monthly') + ' · ' + fmtMoney(d.pending.amount) + ', sent ' + fmtDate(d.pending.at) +
+          '. Your plan is extended as soon as we confirm it, usually within a few hours.'))), help()]);
+    }
+    if (autopayOn) {
+      const stop = h('button', { class: 'btn ghost' }, 'Stop auto-pay');
+      stop.addEventListener('click', async () => {
+        if (!(await confirmBox('Stop auto-pay?', 'You will need to renew by hand before your plan ends.', 'Stop auto-pay', true))) return;
+        stop.disabled = true;
+        try { await rzpCall({ action: 'cancel' }); toast('Auto-pay stopped'); again(); } catch (e) { showErr(e); stop.disabled = false; }
       });
-      const upi = /@/.test(d.upi_id || '') ? { id: d.upi_id, name: d.upi_name } : null;
-      const note = (CFG.site || 'App') + ' ' + CFG.slug + ' ' + plan;
-      box.replaceChildren(
-        pick('monthly', 'Monthly', d.price_month, null),
-        pick('yearly', 'Yearly', d.price_year, save > 0 ? 'Save ' + fmtMoney(save) + ' a year' : null),
-        upi ? h('div', { class: 'card center' },
-          h('div', { class: 'muted small' }, 'Pay ' + fmtMoney(amount) + ' to ' + d.upi_name + ' (' + d.upi_id + ')'),
-          h('a', { class: 'btn block', href: upiLink(upi, amount, note) }, 'Pay with UPI app'),
-          h('div', { class: 'qrbox' }, qrImage(upiLink(upi, amount, note))),
-          h('div', { class: 'muted small' }, 'Or scan this QR from another phone.')) : null,
-        upi ? h('div', { class: 'card' }, h('div', { class: 'small' }, 'After paying, tap the button so we can confirm it.'), utr, sent) : null,
-        /^91\d{10}$/.test(d.whatsapp || '') ? h('a', { class: 'btn ghost block wa', href: waLink(d.whatsapp, 'Hi, I want to renew the app for ' + (S.gym || CFG.name) + ' (' + CFG.slug + '), ' + plan + ' plan.'), target: '_blank', rel: 'noopener' }, upi ? 'Questions? WhatsApp us' : 'Renew on WhatsApp') : null);
+      return show([status, h('div', { class: 'btnrow' }, stop), help()]);
+    }
+
+    // 2. choose a plan
+    const plans = h('div', { class: 'plan-grid', role: 'radiogroup', 'aria-label': 'Plan' });
+    const planBtn = (p, title, price, per, note) => {
+      const b = h('button', { type: 'button', class: 'plan-opt', role: 'radio' },
+        h('div', { class: 'row between' }, h('b', null, title), note ? h('span', { class: 'save-tag' }, note) : null),
+        h('div', { class: 'plan-price' }, fmtMoney(price), h('small', null, per)),
+        p === 'yearly' ? h('div', { class: 'small muted' }, 'Works out to ' + fmtMoney(Math.ceil(d.price_year / 12)) + ' a month') : h('div', { class: 'small muted' }, 'Pay as you go'));
+      b.addEventListener('click', () => { st.plan = p; draw(); });
+      b.dataset.plan = p;
+      return b;
     };
-    draw('yearly');
-    const content = [h('div', { class: 'hero' }, h('div', { class: 'hello' }, 'Your app plan'), h('h2', null, state)), autopayCard(d, standalone), box];
-    if (standalone) {
-      $app.className = 'boot';
-      $app.replaceChildren(h('div', { class: 'login' }, h('h1', null, 'Renew your app'), ...content, h('button', { class: 'btn ghost block', onclick: boot }, 'Back')));
-    } else frame('App plan', content, { back: '#/more' });
+    plans.append(planBtn('yearly', 'Yearly', d.price_year, ' / year', save > 0 ? 'Save ' + fmtMoney(save) : null), planBtn('monthly', 'Monthly', d.price_month, ' / month', null));
+
+    // 3. how to pay
+    const tabs = h('div', { class: 'seg' });
+    const body = h('div');
+    const draw = () => {
+      const amount = st.plan === 'yearly' ? d.price_year : d.price_month;
+      plans.querySelectorAll('.plan-opt').forEach(b => { const on = b.dataset.plan === st.plan; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+      tabs.replaceChildren(...[['auto', 'Auto-pay'], ['once', 'Pay once']].map(([k, l]) =>
+        h('button', { type: 'button', class: k === st.method ? 'on' : '', onclick: () => { st.method = k; draw(); } }, l)));
+      tabs.classList.toggle('hidden', !d.autopay_on);
+      const per = st.plan === 'yearly' ? ' / year' : ' / month';
+      if (!d.autopay_on) {
+        body.replaceChildren(h('p', { class: 'muted' }, 'Online payment is not switched on yet. Message us on WhatsApp and we\u2019ll renew your plan.'));
+      } else if (st.method === 'auto') {
+        const go = h('button', { class: 'btn block' }, 'Set up auto-pay · ' + fmtMoney(amount) + per);
+        go.addEventListener('click', () => startAutopay(go, st.plan, again));
+        body.replaceChildren(h('ul', { class: 'ticks' },
+          h('li', null, 'Approve once with UPI AutoPay or a card, in Razorpay\u2019s secure window'),
+          h('li', null, sub.state === 'trial' ? 'Nothing is charged now. First charge on ' + fmtDate(sub.ends) + ', when your trial ends' : 'Charged automatically when your current plan ends'),
+          h('li', null, 'Your app never pauses. Stop auto-pay any time')), go);
+      } else {
+        const go = h('button', { class: 'btn block' }, 'Pay ' + fmtMoney(amount) + ' now');
+        go.addEventListener('click', () => payOnce(go, st.plan, again));
+        const from = ['trial', 'active'].includes(sub.state) ? sub.ends : todayISO();
+        body.replaceChildren(h('ul', { class: 'ticks' },
+          h('li', null, 'Pay with any UPI app, card, net banking or wallet through Razorpay'),
+          h('li', null, 'Adds one ' + (st.plan === 'yearly' ? 'year' : 'month') + ' after ' + (['trial', 'active'].includes(sub.state) ? 'your current plan ends (' + fmtDate(from) + ')' : 'today')),
+          h('li', null, 'Receipt in your payment history straight away')), go);
+      }
+    };
+    draw();
+    show([status,
+      h('section', { class: 'panel' }, h('div', { class: 'panel-h' }, h('h2', null, sub.state === 'trial' ? 'Choose a plan for after your trial' : 'Renew your plan')), h('div', { class: 'panel-b' }, plans)),
+      h('section', { class: 'panel' }, h('div', { class: 'panel-h' }, h('h2', null, 'How would you like to pay?')), h('div', { class: 'panel-b' }, tabs, body)),
+      help()]);
+
+    function help() {
+      return /^91\d{10}$/.test(d.whatsapp || '') ? h('p', { class: 'center small muted help-line' }, 'Questions? ',
+        h('a', { href: waLink(d.whatsapp, 'Hi, I have a question about the app plan for ' + (S.gym || CFG.name) + ' (' + CFG.slug + ').'), target: '_blank', rel: 'noopener' }, 'Message us on WhatsApp')) : null;
+    }
+    function show(content) {
+      if (standalone) {
+        $app.className = 'boot';
+        $app.replaceChildren(h('div', { class: 'login wide' }, h('h1', null, 'Renew your app'), ...content, h('button', { class: 'btn ghost block', onclick: boot }, 'Back')));
+      } else frame('App plan', content, { back: '#/more' });
+    }
   }
+
+  /** One-time payment for a month or a year through Razorpay Checkout. */
+  async function payOnce(btn, plan, done) {
+    btn.disabled = true;
+    try {
+      const [r] = await Promise.all([rzpCall({ action: 'order', plan }), loadCheckout()]);
+      const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#22d48a';
+      const rz = new window.Razorpay({
+        key: r.key, order_id: r.order_id, amount: r.amount, currency: 'INR', name: CFG.site || 'KanpurGym',
+        description: (plan === 'yearly' ? 'One year' : 'One month') + ' app plan · ' + (S.gym || CFG.name),
+        prefill: { email: (S.me && S.me.email) || '' }, theme: { color: accent },
+        handler: async resp => {
+          try {
+            const v = await rzpCall({ action: 'order_verify', order_id: resp.razorpay_order_id, payment_id: resp.razorpay_payment_id, signature: resp.razorpay_signature });
+            toast('Payment received. Plan valid till ' + fmtDate(v.paid_until) + '.');
+          } catch (e) { toast('Payment received. Your plan updates within a minute.'); }
+          setTimeout(boot, 400);
+        },
+        modal: { ondismiss: () => { btn.disabled = false; } },
+      });
+      rz.on('payment.failed', () => { toast('That did not go through. Try again or use another method.', true); btn.disabled = false; });
+      rz.open();
+    } catch (e) { showErr(e); btn.disabled = false; }
+  }
+
+  async function startAutopay(btn, plan, done) {
+    btn.disabled = true;
+    try {
+      const [r] = await Promise.all([rzpCall({ action: 'start', plan }), loadCheckout()]);
+      const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#22d48a';
+      const rz = new window.Razorpay({
+        key: r.key, subscription_id: r.subscription_id, name: CFG.site || 'KanpurGym',
+        description: (plan === 'yearly' ? 'Yearly' : 'Monthly') + ' app plan · ' + (S.gym || CFG.name),
+        prefill: { email: (S.me && S.me.email) || '' }, theme: { color: accent },
+        handler: async resp => {
+          try { await rzpCall({ action: 'verify', payment_id: resp.razorpay_payment_id, signature: resp.razorpay_signature }); toast('Auto-pay is on. Thank you!'); }
+          catch (e) { toast('Auto-pay set up. It may take a minute to show.'); }
+          done();
+        },
+        modal: { ondismiss: () => { btn.disabled = false; } },
+      });
+      rz.on('payment.failed', () => { toast('That did not go through. Try again or use another UPI app.', true); btn.disabled = false; });
+      rz.open();
+    } catch (e) { showErr(e); btn.disabled = false; }
+  }
+
+
 
   /** The gym's colours, so charts and buttons match its brand even before theme.css refreshes. */
   function applyBrand(b) {
     if (!b || !b.colors) return;
     const root = document.documentElement.style;
     ['a1', 'a2', 'a3', 'accent'].forEach(k => { if (/^#[0-9a-f]{6}$/i.test(b.colors[k] || '')) root.setProperty('--' + k, b.colors[k]); });
+    // text on accent-coloured buttons: dark on light colours, white on dark ones
+    const ac = b.colors.accent || '';
+    if (/^#[0-9a-f]{6}$/i.test(ac)) {
+      const lin = c => { c = parseInt(c, 16) / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+      const L = 0.2126 * lin(ac.slice(1, 3)) + 0.7152 * lin(ac.slice(3, 5)) + 0.0722 * lin(ac.slice(5, 7));
+      root.setProperty('--accent-ink', L > 0.36 ? '#111111' : '#ffffff');
+    }
     if (/^#[0-9a-f]{6}$/i.test(b.colors.bg || '') && document.documentElement.getAttribute('data-theme') !== 'light') root.setProperty('--bg', b.colors.bg);
   }
 
@@ -1728,20 +1792,24 @@
     loading('Settings');
     const d = await api('o_settings');
     const s = d.settings;
-    const save = h('button', { class: 'btn block', type: 'submit' }, 'Save settings');
+    const save = h('button', { class: 'btn', type: 'submit' }, 'Save changes');
     const labels = { soon: 'Ending in 1–3 days', today: 'Ending today', expired: 'Expired', winback: 'Win back', dues: 'Payment due', birthday: 'Birthday' };
     const form = h('form', null,
-      field('Gym name', h('input', { name: 'gym_name', required: true, value: s.gym_name, maxlength: 80 })),
-      field('Address', h('input', { name: 'gym_address', value: s.gym_address, maxlength: 200 })),
-      field('Timings', h('input', { name: 'gym_timings', value: s.gym_timings, maxlength: 120 })),
-      field('Gym WhatsApp number', h('input', { name: 'gym_whatsapp', inputmode: 'tel', value: shortPhone(s.gym_whatsapp) })),
-      field('Google Maps link (optional)', h('input', { name: 'gym_maps', value: s.gym_maps, placeholder: 'https://maps.app.goo.gl/…' })),
-      field('UPI ID (payments go here)', h('input', { name: 'upi_id', value: s.upi_id, placeholder: 'gymname@okaxis', autocapitalize: 'off' })),
-      field('Name shown on UPI', h('input', { name: 'upi_name', value: s.upi_name, maxlength: 60 })),
-      h('div', { class: 'section' }, 'WhatsApp messages'),
-      h('p', { class: 'muted small' }, 'You can use {name}, {gym}, {expiry}, {amount} and {link}.'),
-      Object.keys(labels).map(k => field(labels[k], h('textarea', { 'data-tpl': k, maxlength: 600 }, d.templates[k]))),
-      save);
+      panel('Gym profile', 'Shown to members in their app and on receipts.',
+        field('Gym name', h('input', { name: 'gym_name', required: true, value: s.gym_name, maxlength: 80 })),
+        h('div', { class: 'grid2' },
+          field('WhatsApp number', h('input', { name: 'gym_whatsapp', inputmode: 'tel', value: shortPhone(s.gym_whatsapp), placeholder: '98765 43210' })),
+          field('Timings', h('input', { name: 'gym_timings', value: s.gym_timings, maxlength: 120, placeholder: '5–10 am, 4–10 pm' }))),
+        field('Address', h('input', { name: 'gym_address', value: s.gym_address, maxlength: 200 })),
+        field('Google Maps link (optional)', h('input', { name: 'gym_maps', value: s.gym_maps, placeholder: 'https://maps.app.goo.gl/…' }))),
+      panel('Member payments', 'Members pay their fees straight to this UPI ID. No commission.',
+        h('div', { class: 'grid2' },
+          field('UPI ID', h('input', { name: 'upi_id', value: s.upi_id, placeholder: 'gymname@okaxis', autocapitalize: 'off' })),
+          field('Name shown on UPI', h('input', { name: 'upi_name', value: s.upi_name, maxlength: 60 })))),
+      panel('WhatsApp messages', 'Words you can use: {name}, {gym}, {expiry}, {amount}, {link}.',
+        Object.keys(labels).map(k => h('details', { class: 'tpl' }, h('summary', null, labels[k]),
+          h('textarea', { 'data-tpl': k, maxlength: 600, 'aria-label': labels[k] }, d.templates[k])))),
+      h('div', { class: 'savebar' }, h('span', { class: 'small muted' }, 'Changes apply to your app right away.'), save));
     form.addEventListener('submit', busy(save, async () => {
       const body = formData(form);
       body.templates = {};
@@ -1753,7 +1821,8 @@
     const pw = h('form', null,
       field('Current password', h('input', { type: 'password', name: 'old', required: true, autocomplete: 'current-password' })),
       field('New password (10+ characters)', h('input', { type: 'password', name: 'new', required: true, minlength: 10, autocomplete: 'new-password' })));
-    const pwBtn = h('button', { class: 'btn ghost block', type: 'submit' }, 'Change password');
+    pw.classList.add('grid2');
+    const pwBtn = h('button', { class: 'btn ghost', type: 'submit' }, 'Change password');
     pw.append(pwBtn);
     pw.addEventListener('submit', busy(pwBtn, async () => {
       const f = formData(pw);
@@ -1767,21 +1836,22 @@
     }));
 
     const dl = (type, label) => { const b = h('button', { class: 'btn ghost' }, label); b.addEventListener('click', busy(b, () => exportData(type))); return b; };
-    const demoBtn = h('button', { class: 'btn bad block' }, 'Remove demo data');
+    const demoBtn = h('button', { class: 'btn bad' }, 'Remove demo data');
     demoBtn.addEventListener('click', busy(demoBtn, async () => {
       if (!(await confirmBox('Remove demo data?', 'All fake members, their payments, demo products and demo announcements will be deleted. Your real data stays.', 'Remove', true))) return;
       const r = await api('o_remove_demo', { body: {} });
       removePhotos(r.photos); toast('Demo data removed'); route();
     }));
+    const sub = S.info && S.info.sub;
     frame('Settings', [
-      h('div', { class: 'card' }, form),
-      h('div', { class: 'section' }, 'Backup'),
-      h('div', { class: 'card' }, h('p', { class: 'muted small' }, 'Last full backup: ' + (d.last_backup ? fmtDate(d.last_backup) : 'never') + '. Download one every month and keep it in Google Drive.'),
-        h('div', { class: 'btns' }, dl('backup', 'Full backup'), dl('members', 'Members CSV'), dl('payments', 'Payments CSV'))),
-      h('div', { class: 'section' }, 'Owner login'),
-      h('div', { class: 'card' }, h('p', { class: 'muted small' }, d.owner.name + ' · ' + d.owner.email), pw),
-      h('div', { class: 'section' }, 'Demo'),
-      h('div', { class: 'card' }, demoBtn),
+      form,
+      panel('App plan', 'Your ' + (CFG.site || 'app') + ' subscription.',
+        h('a', { class: 'setrow', href: '#/subscription' }, h('div', { class: 'grow' }, h('b', null, sub ? (sub.state === 'trial' ? 'Free trial' : sub.state === 'active' ? (sub.plan === 'yearly' ? 'Yearly plan' : 'Monthly plan') : 'Plan ended') : 'App plan'),
+          h('div', { class: 'small muted' }, sub ? (sub.state === 'trial' ? 'Ends ' : 'Valid till ') + fmtDate(sub.ends) : '')), h('span', { class: 'btn sm ghost' }, 'Manage'))),
+      panel('Backup', 'Last full backup: ' + (d.last_backup ? fmtDate(d.last_backup) : 'never') + '. Download one every month and keep it in Google Drive.',
+        h('div', { class: 'btnrow' }, dl('backup', 'Full backup (Excel)'), dl('members', 'Members CSV'), dl('payments', 'Payments CSV'))),
+      panel('Login and security', d.owner.name + ' · ' + d.owner.email, pw),
+      panel('Demo data', 'Fake members and products added during setup.', demoBtn, 'danger'),
     ], { back: '#/more' });
   };
 

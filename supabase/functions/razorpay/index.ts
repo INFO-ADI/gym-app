@@ -5,10 +5,21 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const env = (k: string) => Deno.env.get(k) ?? "";
-const KEY_ID = env("RAZORPAY_KEY_ID");
-const KEY_SECRET = env("RAZORPAY_KEY_SECRET");
-const HOOK_SECRET = env("RAZORPAY_WEBHOOK_SECRET");
-const PLANS: Record<string, string> = { monthly: env("RAZORPAY_PLAN_MONTHLY"), yearly: env("RAZORPAY_PLAN_YEARLY") };
+// Settings come from the super admin panel (Settings → Razorpay); the Supabase secrets are a fallback.
+let KEY_ID = "", KEY_SECRET = "", HOOK_SECRET = "";
+let PLANS: Record<string, string> = {};
+let PRICES: Record<string, number> = { monthly: 800, yearly: 4999 };
+async function loadConfig() {
+  let c: Record<string, string> = {};
+  try { c = (await svc("config", {})) ?? {}; } catch (_) { /* fall back to secrets */ }
+  KEY_ID = c.key_id || env("RAZORPAY_KEY_ID");
+  KEY_SECRET = c.key_secret || env("RAZORPAY_KEY_SECRET");
+  HOOK_SECRET = c.webhook_secret || env("RAZORPAY_WEBHOOK_SECRET");
+  if (c.price_month) PRICES = { monthly: Number(c.price_month), yearly: Number(c.price_year) };
+  PLANS = { monthly: c.plan_monthly || env("RAZORPAY_PLAN_MONTHLY"), yearly: c.plan_yearly || env("RAZORPAY_PLAN_YEARLY") };
+  // a key ID entered in the panel only works with its own secret
+  if (c.key_id && !c.key_secret && c.key_id !== env("RAZORPAY_KEY_ID")) KEY_SECRET = "";
+}
 const db = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"), { auth: { persistSession: false } });
 const ORIGIN_OK = /^https:\/\/([a-z0-9-]+\.)?kanpurgym\.com$|^http:\/\/([a-z0-9-]+\.)?kg\.localhost(:\d+)?$/;
 
@@ -56,6 +67,12 @@ async function webhook(req: Request): Promise<Response> {
   const ev = JSON.parse(raw);
   const sub = ev?.payload?.subscription?.entity;
   const pay = ev?.payload?.payment?.entity;
+  const order = ev?.payload?.order?.entity;
+  if (ev.event === "order.paid" && order?.notes?.kind === "one_time" && pay?.id) {
+    const r = await svc("paid_once", { gym_id: Number(order.notes.gym_id), payment_id: pay.id, amount: Math.round(order.amount_paid / 100), plan: order.notes.plan });
+    console.log("one-time", order.id, pay.id, JSON.stringify(r));
+    return new Response("ok", { status: 200 });
+  }
   if (!sub?.id) return new Response("ignored", { status: 200 });
   if (ev.event === "subscription.charged" && pay?.id && pay.status === "captured") {
     const r = await svc("charged", { sub_id: sub.id, payment_id: pay.id, amount: Math.round(pay.amount / 100), period_end: sub.current_end });
@@ -99,6 +116,28 @@ async function app(req: Request): Promise<Response> {
     return json(req, { ok: true, key: KEY_ID, subscription_id: sub.id, first_charge: startAt > nowS + 3600 ? ends : null });
   }
 
+  if (body.action === "order") {
+    // one-time payment for one month or one year (no auto-pay)
+    if (!(await svc("autopay_on", {}))) return json(req, { ok: false, error: "autopay_not_ready" });
+    const plan = body.plan === "yearly" ? "yearly" : "monthly";
+    const order = await rzp("/orders", "POST", {
+      amount: Math.round(PRICES[plan] * 100), currency: "INR", receipt: `g${g.id}-${Date.now()}`.slice(0, 40),
+      notes: { kind: "one_time", gym: slug, gym_id: String(g.id), plan },
+    });
+    return json(req, { ok: true, key: KEY_ID, order_id: order.id, amount: order.amount });
+  }
+
+  if (body.action === "order_verify") {
+    const okSig = sameText(await hmacHex(KEY_SECRET, `${body.order_id}|${body.payment_id}`), String(body.signature ?? ""));
+    if (!okSig) return json(req, { ok: false, error: "verify_failed" });
+    const order = await rzp("/orders/" + encodeURIComponent(String(body.order_id)));
+    if (order?.notes?.gym_id !== String(g.id) || order?.notes?.kind !== "one_time") return json(req, { ok: false, error: "verify_failed" });
+    const pay = await rzp("/payments/" + encodeURIComponent(String(body.payment_id)));
+    if (pay.status !== "captured" || pay.order_id !== order.id) return json(req, { ok: false, error: "payment_pending" });
+    const r = await svc("paid_once", { gym_id: g.id, payment_id: pay.id, amount: Math.round(pay.amount / 100), plan: order.notes.plan });
+    return json(req, { ok: true, paid_until: r?.paid_until });
+  }
+
   if (body.action === "verify") {
     // Razorpay Checkout returns a signed receipt after the owner approves auto-pay
     const ok = g.rzp_sub_id && sameText(await hmacHex(KEY_SECRET, `${body.payment_id}|${g.rzp_sub_id}`), String(body.signature ?? ""));
@@ -129,6 +168,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("Not found", { status: 404 });
   const isHook = new URL(req.url).searchParams.has("webhook");
   try {
+    await loadConfig();
     return isHook ? await webhook(req) : await app(req);
   } catch (e) {
     console.error(String(e));

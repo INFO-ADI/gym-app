@@ -102,7 +102,11 @@ switch ($path) {
     case '/theme.css':
         send_headers('text/css; charset=utf-8', false);
         header('Cache-Control: public, max-age=300');
-        echo ":root{--a1:{$c['a1']};--a2:{$c['a2']};--a3:{$c['a3']};--accent:{$c['accent']}}\n:root:not([data-theme=light]){--bg:{$c['bg']}}\n";
+        $lin = function ($h) { $v = hexdec($h) / 255; return $v <= 0.03928 ? $v / 12.92 : pow(($v + 0.055) / 1.055, 2.4); };
+        $acc = ltrim($c['accent'], '#');
+        $lum = 0.2126 * $lin(substr($acc, 0, 2)) + 0.7152 * $lin(substr($acc, 2, 2)) + 0.0722 * $lin(substr($acc, 4, 2));
+        $ink = $lum > 0.36 ? '#111111' : '#ffffff';
+        echo ":root{--a1:{$c['a1']};--a2:{$c['a2']};--a3:{$c['a3']};--accent:{$c['accent']};--accent-ink:$ink}\n:root:not([data-theme=light]){--bg:{$c['bg']}}\n";
         exit;
     case '/manifest.webmanifest':
         send_headers('application/manifest+json; charset=utf-8', false);
