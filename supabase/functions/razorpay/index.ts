@@ -6,7 +6,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const env = (k: string) => Deno.env.get(k) ?? "";
 // Settings come from the super admin panel (Settings → Razorpay); the Supabase secrets are a fallback.
-let KEY_ID = "", KEY_SECRET = "", HOOK_SECRET = "";
+let KEY_ID = "", KEY_SECRET = "", HOOK_SECRET = "", HOOK_SECRET_OTHER = "";
 let PLANS: Record<string, string> = {};
 let PRICES: Record<string, number> = { monthly: 800, yearly: 4999 };
 async function loadConfig() {
@@ -15,6 +15,7 @@ async function loadConfig() {
   KEY_ID = c.key_id || env("RAZORPAY_KEY_ID");
   KEY_SECRET = c.key_secret || env("RAZORPAY_KEY_SECRET");
   HOOK_SECRET = c.webhook_secret || env("RAZORPAY_WEBHOOK_SECRET");
+  HOOK_SECRET_OTHER = c.webhook_secret_other || "";
   if (c.price_month) PRICES = { monthly: Number(c.price_month), yearly: Number(c.price_year) };
   PLANS = { monthly: c.plan_monthly || env("RAZORPAY_PLAN_MONTHLY"), yearly: c.plan_yearly || env("RAZORPAY_PLAN_YEARLY") };
   // a key ID entered in the panel only works with its own secret
@@ -63,7 +64,10 @@ async function svc(action: string, input: Record<string, unknown>) {
 async function webhook(req: Request): Promise<Response> {
   const raw = await req.text();
   const sig = req.headers.get("x-razorpay-signature") ?? "";
-  if (!HOOK_SECRET || !sameText(await hmacHex(HOOK_SECRET, raw), sig)) return new Response("bad signature", { status: 401 });
+  // test and live webhooks have their own secrets; accept either
+  let signed = false;
+  for (const sec of [HOOK_SECRET, HOOK_SECRET_OTHER]) if (sec && sameText(await hmacHex(sec, raw), sig)) signed = true;
+  if (!signed) return new Response("bad signature", { status: 401 });
   const ev = JSON.parse(raw);
   const sub = ev?.payload?.subscription?.entity;
   const pay = ev?.payload?.payment?.entity;

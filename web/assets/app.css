@@ -415,3 +415,10 @@ details.tpl textarea{display:block;width:calc(100% - 20px);margin:0 10px 10px;mi
 .pwrow{display:flex;gap:10px;margin-bottom:12px}
 .pwrow input{flex:1;min-width:0;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--bg);font-size:16px}
 .hookbox{padding:12px 14px;border:1px dashed var(--line);border-radius:12px;margin:2px 0 14px;display:flex;flex-direction:column;gap:8px}
+.mode-seg{margin:6px 0 16px}
+.mode-seg button.on.live{background:#c0283c;color:#fff}
+.mode-seg button.on.test{background:#b86e00;color:#fff}
+.rz-set summary{align-items:center;gap:10px}
+.rz-set summary::after{margin-left:14px}
+.rz-set summary .badge{margin-left:auto}
+.rz-body{padding:4px 12px 2px}

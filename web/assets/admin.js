@@ -663,30 +663,46 @@
       h('div', { class: 'savebar' }, h('span', { class: 'small muted' }, 'Saved settings apply straight away.'), saveBtn));
     form.addEventListener('submit', busy(saveBtn, async () => { S.settings = await api('settings', formData(form)); toast('Settings saved'); }));
 
-    const live = /^rzp_live_/.test(st.rzp_key_id || '');
+    const mode = st.rzp_mode === 'live' ? 'live' : 'test';
     const hookUrl = CFG.url + '/functions/v1/razorpay?webhook=1';
     const secretInput = (name, isSet) => h('input', { name, type: 'password', autocomplete: 'off', placeholder: isSet ? 'Saved ✓ (type only to replace)' : 'Paste here' });
-    const rzBtn = h('button', { class: 'btn', type: 'submit' }, 'Save Razorpay settings');
+    const modeSet = m => h('details', { class: 'tpl rz-set', open: m === mode },
+      h('summary', null, (m === 'live' ? 'Live' : 'Test') + ' details', st['rzp_' + m + '_key_id'] ? h('span', { class: 'badge ' + (m === 'live' ? 'active' : 'expiring') }, st['rzp_' + m + '_secret_set'] ? 'Saved' : 'Secret missing') : h('span', { class: 'badge' }, 'Empty')),
+      h('div', { class: 'rz-body' },
+        h('div', { class: 'grid2' },
+          field('Key ID', h('input', { name: 'rzp_' + m + '_key_id', value: st['rzp_' + m + '_key_id'] || '', placeholder: 'rzp_' + m + '_…', autocapitalize: 'off', autocomplete: 'off' })),
+          field('Key secret', secretInput('rzp_' + m + '_key_secret', st['rzp_' + m + '_secret_set'])),
+          field('Monthly plan ID', h('input', { name: 'rzp_' + m + '_plan_monthly', value: st['rzp_' + m + '_plan_monthly'] || '', placeholder: 'plan_…', autocapitalize: 'off' })),
+          field('Yearly plan ID', h('input', { name: 'rzp_' + m + '_plan_yearly', value: st['rzp_' + m + '_plan_yearly'] || '', placeholder: 'plan_…', autocapitalize: 'off' }))),
+        field('Webhook secret (from the ' + m + ' webhook)', secretInput('rzp_' + m + '_webhook_secret', st['rzp_' + m + '_webhook_set']))));
+    const modeInput = h('input', { type: 'hidden', name: 'rzp_mode', value: mode });
+    const modeSeg = h('div', { class: 'seg mode-seg' }, ['test', 'live'].map(m => {
+      const b = h('button', { type: 'button', class: m === mode ? 'on ' + m : '' }, m === 'live' ? 'Live mode' : 'Test mode');
+      b.addEventListener('click', busy(b, async () => {
+        if (m === modeInput.value) return;
+        if (m === 'live' && !(st.rzp_live_key_id && st.rzp_live_secret_set)) throw new Error('Add and save the live Key ID and Key secret first.');
+        if (m === 'live' && !confirm('Switch to LIVE mode? Gym owners will pay real money from now on.')) return;
+        S.settings = await api('settings', { rzp_mode: m }); toast(m === 'live' ? 'Live mode is on' : 'Test mode is on'); routes.settings();
+      }));
+      return b;
+    }));
+    const rzBtn = h('button', { class: 'btn', type: 'submit' }, 'Save Razorpay details');
     const rz = h('form', { class: 'panel' },
       h('div', { class: 'panel-h' }, h('div', { class: 'row between' }, h('h2', null, 'Razorpay'),
-        st.rzp_key_id ? h('span', { class: 'badge ' + (live ? 'active' : 'expiring') }, live ? 'Live mode' : 'Test mode') : h('span', { class: 'badge' }, 'Not connected')),
-        h('p', null, 'Gym owners pay their plan through Razorpay: auto-pay or a one-time payment. Use test keys and test plans together, or live with live.')),
+        h('span', { class: 'badge ' + (mode === 'live' ? 'active' : 'expiring') }, mode === 'live' ? 'Live: real payments' : 'Test: no real money')),
+        h('p', null, 'Gym owners pay their plan through Razorpay: auto-pay or a one-time payment. Save both sets once, then switch whenever you like.')),
       h('div', { class: 'panel-b' },
+        h('div', { class: 'small muted', style: null }, 'Mode in use'), modeSeg, modeInput,
         field('Online payments for gym owners', h('select', { name: 'autopay' }, h('option', { value: 'off', selected: st.autopay !== 'on' }, 'Off'), h('option', { value: 'on', selected: st.autopay === 'on' }, 'On'))),
-        h('div', { class: 'grid2' },
-          field('Key ID', h('input', { name: 'rzp_key_id', value: st.rzp_key_id || '', placeholder: 'rzp_test_…', autocapitalize: 'off', autocomplete: 'off' })),
-          field('Key secret', secretInput('rzp_key_secret', st.rzp_secret_set)),
-          field('Monthly plan ID', h('input', { name: 'rzp_plan_monthly', value: st.rzp_plan_monthly || '', placeholder: 'plan_…', autocapitalize: 'off' })),
-          field('Yearly plan ID', h('input', { name: 'rzp_plan_yearly', value: st.rzp_plan_yearly || '', placeholder: 'plan_…', autocapitalize: 'off' }))),
-        field('Webhook secret', secretInput('rzp_webhook_secret', st.rzp_webhook_set)),
-        h('div', { class: 'hookbox' }, h('div', { class: 'small muted' }, 'Webhook URL for Razorpay (Settings → Webhooks). Tick all "subscription" events and "order.paid".'),
+        modeSet('test'), modeSet('live'),
+        h('div', { class: 'hookbox' }, h('div', { class: 'small muted' }, 'Webhook URL (use the same URL in Test and Live mode in Razorpay; tick all "subscription" events and "order.paid"):'),
           h('div', { class: 'row' }, h('code', { class: 'grow small' }, hookUrl), h('button', { class: 'btn sm ghost', type: 'button', onclick: () => copy(hookUrl, 'Webhook URL') }, 'Copy'))),
         rzBtn));
     rz.addEventListener('submit', busy(rzBtn, async () => {
       const b = formData(rz);
-      if (!b.rzp_key_secret) delete b.rzp_key_secret;
-      if (!b.rzp_webhook_secret) delete b.rzp_webhook_secret;
-      S.settings = await api('settings', b); toast('Razorpay settings saved'); routes.settings();
+      delete b.rzp_mode;
+      for (const k of Object.keys(b)) if (/_secret$/.test(k) && !b[k]) delete b[k];
+      S.settings = await api('settings', b); toast('Razorpay details saved'); routes.settings();
     }));
 
     const pw = h('input', { type: 'password', minlength: 10, autocomplete: 'new-password', placeholder: 'New password (10+ characters)', 'aria-label': 'New password' });
